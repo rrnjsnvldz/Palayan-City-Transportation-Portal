@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+
+# Environment variables (NEVER commit these)
+.env
+.env.local
+.env.*.local
+server/.env
+
+# Database files
+server/*.db
+server/*.db-shm
+server/*.db-wal
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
