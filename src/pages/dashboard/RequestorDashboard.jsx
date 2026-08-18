@@ -49,12 +49,14 @@ export default function RequestorDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-4" style={{ marginBottom: '2rem' }}>
+      <div className="request-analytics analytics-grid-4" style={{ marginBottom: '1.5rem' }}>
         {STAT_CARDS.map(s => (
-          <div key={s.label} className="stat-card" style={{ '--stat-color': s.color, '--stat-rgb': s.rgb }}>
-            <div className="stat-icon"><s.icon size={22} /></div>
-            <div className="stat-value">{s.value}</div>
-            <div className="stat-label">{s.label}</div>
+          <div key={s.label} className="mini-stat-card" style={{ '--stat-color': s.color, '--stat-rgb': s.rgb }}>
+            <div className="mini-stat-icon"><s.icon size={15} /></div>
+            <div className="mini-stat-info">
+              <div className="mini-stat-value">{s.value}</div>
+              <div className="mini-stat-label">{s.label}</div>
+            </div>
           </div>
         ))}
       </div>

@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { requestApi } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
 import StatusBadge from '../../components/StatusBadge';
 import AssignModal from '../../components/AssignModal';
 import { formatTime12, calculateDuration } from '../../utils/timeFormat';
-import { Search, CheckCircle, XCircle, ChevronDown, ChevronUp, X, Plus, Clock, Edit2 } from 'lucide-react';
+import {
+  Search, CheckCircle, XCircle, ChevronDown, ChevronUp, X, Plus,
+  Clock, Edit2, FileText, CalendarCheck, Activity, Users, AlertCircle
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // ── Deny Modal ────────────────────────────────────────────────
@@ -13,12 +16,20 @@ function DenyModal({ request, onClose, onDenied }) {
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
   const handleDeny = async () => {
     setLoading(true);
-    try { await requestApi.deny(request.id, reason); toast({ type: 'success', title: 'Request Denied' }); onDenied(); }
-    catch (err) { toast({ type: 'error', title: 'Error', message: err.response?.data?.error }); }
-    finally { setLoading(false); }
+    try {
+      await requestApi.deny(request.id, reason);
+      toast({ type: 'success', title: 'Request Denied' });
+      onDenied();
+    } catch (err) {
+      toast({ type: 'error', title: 'Error', message: err.response?.data?.error });
+    } finally {
+      setLoading(false);
+    }
   };
+
   return (
     <div className="modal-overlay">
       <div className="modal">
@@ -30,7 +41,13 @@ function DenyModal({ request, onClose, onDenied }) {
           <p style={{ marginBottom: '1rem', fontSize: '0.875rem' }}>
             Reason for denying <strong>{request.destination}</strong>:
           </p>
-          <textarea className="form-control" rows={3} placeholder="Enter reason..." value={reason} onChange={e => setReason(e.target.value)} />
+          <textarea
+            className="form-control"
+            rows={3}
+            placeholder="Enter reason..."
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+          />
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
@@ -225,6 +242,29 @@ export default function RequestList() {
     setAssignTarget(request);
   };
 
+  // Analytics calculation for Admin
+  const analytics = useMemo(() => {
+    const total = requests.length;
+    const pending = requests.filter(r => r.status === 'pending').length;
+    const approved = requests.filter(r => r.status === 'approved').length;
+    const inProgress = requests.filter(r => r.status === 'in_progress').length;
+    const completed = requests.filter(r => r.status === 'completed').length;
+    const totalPax = requests
+      .filter(r => ['approved', 'in_progress', 'completed'].includes(r.status))
+      .reduce((sum, r) => sum + (parseInt(r.pax_count, 10) || 1), 0);
+
+    return { total, pending, approved, inProgress, completed, totalPax };
+  }, [requests]);
+
+  const ANALYTIC_CARDS = [
+    { label: 'Total Requests',   value: analytics.total,      icon: FileText,      color: '#c9a84c', rgb: '201,168,76', filterKey: 'all' },
+    { label: 'Pending Review',   value: analytics.pending,    icon: Clock,         color: '#f59e0b', rgb: '245,158,11', filterKey: 'pending', alert: analytics.pending > 0 },
+    { label: 'Approved Trips',   value: analytics.approved,   icon: CalendarCheck, color: '#3b82f6', rgb: '59,130,246', filterKey: 'approved' },
+    { label: 'Active En Route',  value: analytics.inProgress, icon: Activity,      color: '#14b8a6', rgb: '20,184,166', filterKey: 'in_progress' },
+    { label: 'Completed Trips',  value: analytics.completed,  icon: CheckCircle,   color: '#22c55e', rgb: '34,197,94',  filterKey: 'completed' },
+    { label: 'Total Passengers', value: analytics.totalPax,   icon: Users,         color: '#8b5cf6', rgb: '139,92,246' },
+  ];
+
   const filtered = requests.filter(r => {
     const matchStatus = statusFilter === 'all' || r.status === statusFilter;
     const matchSearch = !search || [r.destination, r.purpose, r.requestor?.name, r.department]
@@ -236,8 +276,8 @@ export default function RequestList() {
     <div className="page-content fade-in">
       <div className="page-header flex items-center justify-between">
         <div>
-          <h1>{isAdmin ? 'All Requests' : 'My Requests'}</h1>
-          <p>{filtered.length} request{filtered.length !== 1 ? 's' : ''}</p>
+          <h1>{isAdmin ? 'Transport Requests' : 'My Requests'}</h1>
+          <p>{isAdmin ? 'Manage, approve, and track all department travel requests' : `${filtered.length} request${filtered.length !== 1 ? 's' : ''}`}</p>
         </div>
         {!isAdmin && (
           <button className="btn btn-primary btn-sm" onClick={() => navigate('/new-request')}>
@@ -246,19 +286,63 @@ export default function RequestList() {
         )}
       </div>
 
-      {/* Filters */}
+      {/* Admin Compact Analytical Cards */}
+      {isAdmin && !loading && (
+        <div className="request-analytics">
+          {ANALYTIC_CARDS.map(card => {
+            const isSelected = card.filterKey && statusFilter === card.filterKey;
+            return (
+              <div
+                key={card.label}
+                className={`mini-stat-card${isSelected ? ' active' : ''}`}
+                style={{
+                  '--stat-color': card.color,
+                  '--stat-rgb': card.rgb,
+                }}
+                onClick={() => card.filterKey && setStatusFilter(card.filterKey)}
+                title={card.filterKey ? `Filter by ${card.label}` : undefined}
+              >
+                {card.alert && (
+                  <div style={{ position: 'absolute', top: '0.35rem', right: '0.35rem' }}>
+                    <AlertCircle size={12} color="#f59e0b" />
+                  </div>
+                )}
+                <div className="mini-stat-icon">
+                  <card.icon size={15} />
+                </div>
+                <div className="mini-stat-info">
+                  <div className="mini-stat-value">{card.value}</div>
+                  <div className="mini-stat-label">{card.label}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Filters & Search */}
       <div style={{ display: 'flex', gap: '0.625rem', marginBottom: '1.125rem', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 180 }}>
           <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-          <input id="search-requests" type="text" className="form-control" placeholder="Search requests…"
-            value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: '2.1rem' }} />
+          <input
+            id="search-requests"
+            type="text"
+            className="form-control"
+            placeholder="Search by destination, requestor, department, or purpose…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: '2.1rem' }}
+          />
         </div>
         <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
           {STATUS_FILTERS.map(s => (
-            <button key={s} id={`filter-${s}`}
+            <button
+              key={s}
+              id={`filter-${s}`}
               className={`btn btn-sm ${statusFilter === s ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setStatusFilter(s)}
-              style={{ textTransform: 'capitalize', fontSize: '0.72rem' }}>
+              style={{ textTransform: 'capitalize', fontSize: '0.72rem' }}
+            >
               {s === 'all' ? 'All' : s.replace('_', ' ')}
             </button>
           ))}
@@ -278,8 +362,12 @@ export default function RequestList() {
         <div className="empty-state">
           <div className="empty-icon">📋</div>
           <h3>No requests found</h3>
-          <p>Try adjusting your filters</p>
-          {!isAdmin && <button className="btn btn-primary" style={{ marginTop: '1rem' }} onClick={() => navigate('/new-request')}><Plus size={16} /> New Request</button>}
+          <p>Try adjusting your search or filters</p>
+          {!isAdmin && (
+            <button className="btn btn-primary" style={{ marginTop: '1rem' }} onClick={() => navigate('/new-request')}>
+              <Plus size={16} /> New Request
+            </button>
+          )}
         </div>
       ) : (
         <>

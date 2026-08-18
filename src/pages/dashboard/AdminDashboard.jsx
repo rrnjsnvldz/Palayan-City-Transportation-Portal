@@ -95,39 +95,44 @@ export default function AdminDashboard() {
 
   return (
     <div className="page-content fade-in">
-      <div className="page-header flex items-center justify-between">
-        <div>
-          <h1>Admin Dashboard</h1>
-          <p>City of Palayan — Fleet Management Overview</p>
-        </div>
-        <Link to="/live-map" className="btn btn-primary"><MapPin size={16} /> Live Map</Link>
+      <div className="page-header">
+        <h1>Admin Dashboard</h1>
+        <p>City of Palayan — Fleet Management Overview</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-3" style={{ marginBottom: '2rem' }}>
+      <div className="request-analytics" style={{ marginBottom: '1.5rem' }}>
         {STAT_CARDS.map(s => (
-          <div key={s.label} className="stat-card" style={{ '--stat-color': s.color, '--stat-rgb': s.rgb }}>
-            {s.alert && <div style={{ position: 'absolute', top: '1rem', right: '1rem' }}>
-              <AlertCircle size={16} color="#f59e0b" />
-            </div>}
-            <div className="stat-icon"><s.icon size={22} /></div>
-            <div className="stat-value">{s.value}</div>
-            <div className="stat-label">{s.label}</div>
+          <div
+            key={s.label}
+            className="mini-stat-card"
+            style={{ '--stat-color': s.color, '--stat-rgb': s.rgb }}
+          >
+            {s.alert && (
+              <div style={{ position: 'absolute', top: '0.35rem', right: '0.35rem' }}>
+                <AlertCircle size={12} color="#f59e0b" />
+              </div>
+            )}
+            <div className="mini-stat-icon"><s.icon size={15} /></div>
+            <div className="mini-stat-info">
+              <div className="mini-stat-value">{s.value}</div>
+              <div className="mini-stat-label">{s.label}</div>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-2" style={{ gap: '1.5rem' }}>
-        {/* Pending Requests */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h3>🔔 Pending Requests ({pending.length})</h3>
+      <div className="grid grid-2" style={{ gap: '1.5rem', alignItems: 'start' }}>
+        {/* Pending Requests Column */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="flex items-center justify-between" style={{ minHeight: 34, marginBottom: '0.75rem' }}>
+            <h3 style={{ margin: 0 }}>🔔 Pending Requests ({pending.length})</h3>
             <Link to="/requests" className="btn btn-sm btn-secondary">All Requests</Link>
           </div>
           {pending.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-              <CheckCircle size={32} style={{ margin: '0 auto 0.75rem', opacity: 0.5 }} />
-              <p>No pending requests</p>
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '2rem 1.5rem', color: 'var(--text-muted)', minHeight: 140 }}>
+              <CheckCircle size={30} style={{ marginBottom: '0.5rem', opacity: 0.5 }} />
+              <p style={{ margin: 0, fontSize: '0.85rem' }}>No pending requests</p>
             </div>
           ) : (
             <div className="table-container">
@@ -176,15 +181,17 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {/* Active Trips */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h3>🚗 Active Trips ({inProgress.length})</h3>
+        {/* Right Column: Active Trips & Fleet Status */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* Active Trips Header */}
+          <div className="flex items-center justify-between" style={{ minHeight: 34, marginBottom: '0.75rem' }}>
+            <h3 style={{ margin: 0 }}>🚗 Active Trips ({inProgress.length})</h3>
+            <Link to="/requests" className="btn btn-sm btn-secondary">All Trips</Link>
           </div>
           {inProgress.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-              <Car size={32} style={{ margin: '0 auto 0.75rem', opacity: 0.5 }} />
-              <p>No active trips</p>
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '2rem 1.5rem', color: 'var(--text-muted)', minHeight: 140 }}>
+              <Car size={30} style={{ marginBottom: '0.5rem', opacity: 0.5 }} />
+              <p style={{ margin: 0, fontSize: '0.85rem' }}>No active trips</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -222,7 +229,12 @@ export default function AdminDashboard() {
 
           {/* Vehicle Status Summary */}
           <div style={{ marginTop: '1.5rem' }}>
-            <h3 style={{ marginBottom: '0.75rem' }}>Fleet Status</h3>
+            <div className="flex items-center justify-between" style={{ minHeight: 34, marginBottom: '0.75rem' }}>
+              <h3 style={{ margin: 0 }}>Fleet Status</h3>
+              <Link to="/vehicles" className="btn btn-sm btn-secondary">
+                Manage All <ChevronRight size={13} />
+              </Link>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {vehicles.slice(0, 5).map(v => (
                 <div key={v.id} className="card" style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -235,9 +247,6 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               ))}
-              <Link to="/vehicles" className="btn btn-secondary btn-sm" style={{ marginTop: '0.25rem' }}>
-                Manage All Vehicles <ChevronRight size={14} />
-              </Link>
             </div>
           </div>
         </div>
