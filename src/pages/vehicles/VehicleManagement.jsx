@@ -1,22 +1,21 @@
 import { useState, useEffect } from 'react';
 import { vehicleApi } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
-import VehicleCard from '../../components/VehicleCard';
 import StatusBadge from '../../components/StatusBadge';
-import { Plus, X, Edit2, Trash2, Car } from 'lucide-react';
+import VehicleCard from '../../components/VehicleCard';
+import { Plus, Edit2, Trash2, X, Car } from 'lucide-react';
 
-const VEHICLE_TYPES = ['Van', 'SUV', 'Pickup', 'Sedan', 'Ambulance', 'Bus', 'Truck', 'Other'];
-const STATUSES = ['available', 'maintenance'];
+const VEHICLE_TYPES = ['Van', 'SUV', 'Pickup', 'Ambulance', 'Sedan', 'Bus', 'Truck'];
+const STATUSES = ['available', 'in_use', 'maintenance'];
 
 function VehicleModal({ vehicle, onClose, onSaved }) {
-  const isEdit = !!vehicle?.id;
+  const isEdit = !!vehicle;
   const [form, setForm] = useState({
     plate_no: vehicle?.plate_no || '',
     name: vehicle?.name || '',
     type: vehicle?.type || 'Van',
     capacity: vehicle?.capacity || 5,
     status: vehicle?.status || 'available',
-    fuel_level: vehicle?.fuel_level ?? 100,
   });
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -60,17 +59,13 @@ function VehicleModal({ vehicle, onClose, onSaved }) {
             </div>
             <div className="form-group">
               <label className="form-label">Capacity (seats)</label>
-              <input id="veh-capacity" type="number" min={1} max={60} className="form-control" value={form.capacity} onChange={e => set('capacity', parseInt(e.target.value))} />
+              <input id="veh-capacity" type="number" min={1} max={60} className="form-control" value={form.capacity} onChange={e => set('capacity', parseInt(e.target.value, 10))} />
             </div>
-            <div className="form-group">
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label className="form-label">Status</label>
               <select id="veh-status" className="form-control" value={form.status} onChange={e => set('status', e.target.value)}>
                 {STATUSES.map(s => <option key={s} value={s} style={{ textTransform: 'capitalize' }}>{s}</option>)}
               </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Fuel Level (%)</label>
-              <input id="veh-fuel" type="number" min={0} max={100} className="form-control" value={form.fuel_level} onChange={e => set('fuel_level', parseFloat(e.target.value))} />
             </div>
           </div>
         </div>
@@ -156,7 +151,7 @@ export default function VehicleManagement() {
         <div className="table-container">
           <table>
             <thead>
-              <tr><th>Plate No</th><th>Name</th><th>Type</th><th>Capacity</th><th>Fuel</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>Plate No</th><th>Name</th><th>Type</th><th>Capacity</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {vehicles.map(v => (
@@ -164,15 +159,7 @@ export default function VehicleManagement() {
                   <td style={{ fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{v.plate_no}</td>
                   <td>{v.name}</td>
                   <td>{v.type}</td>
-                  <td>{v.capacity}</td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <div style={{ width: 60, height: 4, background: 'var(--surface-3)', borderRadius: '99px', overflow: 'hidden' }}>
-                        <div style={{ width: `${v.fuel_level}%`, height: '100%', background: v.fuel_level > 50 ? '#22c55e' : v.fuel_level > 25 ? '#f59e0b' : '#ef4444' }} />
-                      </div>
-                      <span style={{ fontSize: '0.75rem' }}>{v.fuel_level?.toFixed(0)}%</span>
-                    </div>
-                  </td>
+                  <td>{v.capacity} seats</td>
                   <td><StatusBadge status={v.status} /></td>
                   <td>
                     <div className="flex gap-1">

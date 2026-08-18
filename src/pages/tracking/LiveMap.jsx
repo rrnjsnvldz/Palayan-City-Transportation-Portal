@@ -6,7 +6,7 @@ import { vehicleApi, gpsApi } from '../../services/api';
 import { useRealtime } from '../../hooks/useSocket';
 import { useToast } from '../../hooks/useToast';
 import StatusBadge from '../../components/StatusBadge';
-import { Wifi, WifiOff, Gauge, Fuel, Play, Square, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
+import { Wifi, WifiOff, Gauge, Play, Square, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Fix Leaflet default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -205,7 +205,6 @@ export default function LiveMap() {
                 {v.current_lat ? (
                   <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.2rem', fontSize: '0.68rem', color: '#22c55e' }}>
                     <span><Gauge size={10} style={{ display: 'inline', marginRight: 2 }} />{(v.speed || 0).toFixed(0)} km/h</span>
-                    <span><Fuel  size={10} style={{ display: 'inline', marginRight: 2 }} />{(v.fuel_level || 0).toFixed(0)}%</span>
                   </div>
                 ) : (
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>No GPS signal</div>
@@ -222,7 +221,6 @@ export default function LiveMap() {
                 ['Plate',   selected.plate_no],
                 ['Status',  selected.status],
                 ['Speed',   `${(selected.speed || 0).toFixed(0)} km/h`],
-                ['Fuel',    `${(selected.fuel_level || 0).toFixed(0)}%`],
                 ['Coords',  selected.current_lat ? `${selected.current_lat.toFixed(4)}, ${selected.current_lng.toFixed(4)}` : 'N/A'],
                 ['Updated', selected.last_updated ? new Date(selected.last_updated).toLocaleTimeString() : '—'],
               ].map(([k, val]) => (
@@ -258,7 +256,6 @@ export default function LiveMap() {
                   <div style={{ minWidth: 150 }}>
                     <div style={{ fontWeight: 700, marginBottom: 4 }}>{v.name}</div>
                     <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>{v.plate_no}</div>
-                    <div style={{ fontSize: 12 }}>⛽ Fuel: {(v.fuel_level || 0).toFixed(0)}%</div>
                     <div style={{ fontSize: 12 }}>🏎️ Speed: {(v.speed || 0).toFixed(0)} km/h</div>
                     <div style={{ fontSize: 12, textTransform: 'capitalize' }}>📍 {v.status?.replace('_', ' ')}</div>
                   </div>

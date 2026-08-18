@@ -320,7 +320,7 @@ export default function AssignModal({ request, onClose, onAssigned }) {
                         fontWeight: v.isEligible ? '500' : 'normal'
                       }}
                     >
-                      {v.name} ({v.plate_no}) — {v.type} · {v.capacity} Seats · {v.fuel_level?.toFixed(0)}% Fuel {v.isCurrent ? '★ Current' : ''} {v.disabledReason ? `— ${v.disabledReason}` : ''}
+                      {v.name} ({v.plate_no}) — {v.type} · {v.capacity} Seats {v.isCurrent ? '★ Current' : ''} {v.disabledReason ? `— ${v.disabledReason}` : ''}
                     </option>
                   ))}
                 </optgroup>

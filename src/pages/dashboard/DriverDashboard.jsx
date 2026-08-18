@@ -4,7 +4,7 @@ import { requestApi, assignmentApi } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
 import StatusBadge from '../../components/StatusBadge';
 import { formatTime12, calculateDuration } from '../../utils/timeFormat';
-import { Truck, CheckCircle, MapPin, Navigation, StopCircle, Fuel, Users, AlertCircle, Calendar, Clock, ArrowRight } from 'lucide-react';
+import { Truck, CheckCircle, MapPin, Navigation, StopCircle, Users, AlertCircle, Calendar, Clock, ArrowRight } from 'lucide-react';
 
 function ActiveTripCard({ trip, onStart, onEnd, starting, ending }) {
   const assignment = trip.assignment;
@@ -74,7 +74,6 @@ function ActiveTripCard({ trip, onStart, onEnd, starting, ending }) {
           { icon: MapPin,      label: 'Destination',    value: trip.destination },
           { icon: Users,       label: 'Passengers',     value: `${trip.pax_count} pax` },
           { icon: Truck,       label: 'Vehicle',        value: `${assignment?.vehicle_name || '—'} (${assignment?.plate_no || '—'})` },
-          { icon: Fuel,        label: 'Fuel Level',     value: `${assignment?.fuel_level?.toFixed(0) || '—'}%` },
           { icon: AlertCircle, label: 'Purpose',        value: trip.purpose },
           { icon: Calendar,    label: 'Duration',       value: duration || 'Same day' },
         ].map(item => (

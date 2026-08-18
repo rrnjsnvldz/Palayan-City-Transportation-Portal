@@ -231,7 +231,6 @@ export default function AdminDashboard() {
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{v.plate_no}</div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{v.fuel_level?.toFixed(0)}% fuel</span>
                     <StatusBadge status={v.status} />
                   </div>
                 </div>
