@@ -214,11 +214,10 @@ function RequestMobileCard({ r, isAdmin, onApprove, onEdit, onDeny }) {
   );
 }
 
-const STATUS_FILTERS = ['all','pending','approved','in_progress','completed','denied','cancelled'];
-
 export default function RequestList() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const isDriver = user?.role === 'driver';
   const navigate = useNavigate();
   const [requests,     setRequests]     = useState([]);
   const [loading,      setLoading]      = useState(true);
@@ -227,6 +226,13 @@ export default function RequestList() {
   const [assignTarget, setAssignTarget] = useState(null);
   const [denyTarget,   setDenyTarget]   = useState(null);
   const { toast } = useToast();
+
+  const statusFilters = useMemo(() => {
+    if (isDriver) {
+      return ['all', 'approved', 'in_progress', 'completed', 'cancelled'];
+    }
+    return ['all', 'pending', 'approved', 'in_progress', 'completed', 'denied', 'cancelled'];
+  }, [isDriver]);
 
   const loadData = () => {
     requestApi.list().then(r => setRequests(r.data)).finally(() => setLoading(false));
@@ -335,7 +341,7 @@ export default function RequestList() {
           />
         </div>
         <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-          {STATUS_FILTERS.map(s => (
+          {statusFilters.map(s => (
             <button
               key={s}
               id={`filter-${s}`}

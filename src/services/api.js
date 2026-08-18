@@ -49,10 +49,12 @@ export const requestApi = {
 };
 
 export const assignmentApi = {
-  list:      ()             => api.get('/api/assignments'),
-  create:    (data)         => api.post('/api/assignments', data),
-  startTrip: (id)           => api.patch(`/api/assignments/${id}/start`),
-  endTrip:   (id, data)     => api.patch(`/api/assignments/${id}/end`, data),
+  list:              ()          => api.get('/api/assignments'),
+  create:            (data)      => api.post('/api/assignments', data),
+  startTrip:         (id)        => api.patch(`/api/assignments/${id}/start`),
+  arriveDestination: (id)        => api.patch(`/api/assignments/${id}/arrive-destination`),
+  departDestination: (id)        => api.patch(`/api/assignments/${id}/depart-destination`),
+  endTrip:           (id, data)  => api.patch(`/api/assignments/${id}/end`, data),
 };
 
 export const gpsApi = {
