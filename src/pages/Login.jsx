@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import { useToast } from '../../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../hooks/useToast';
 import { Car, Eye, EyeOff, MapPin, ShieldCheck, Truck, Wifi } from 'lucide-react';
 
 const DEMO_ACCOUNTS = [

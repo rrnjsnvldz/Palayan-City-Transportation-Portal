@@ -275,8 +275,8 @@ export default function RequestList() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {[1,2,3].map(i => (
             <div key={i} className="skeleton-card">
-              <div className="skeleton skeleton-line w-3/4" style={{ height: 14 }} />
-              <div className="skeleton skeleton-line w-1/2" style={{ height: 10 }} />
+              <div className="skeleton skeleton-line w-75" style={{ height: 14 }} />
+              <div className="skeleton skeleton-line w-50" style={{ height: 10 }} />
             </div>
           ))}
         </div>

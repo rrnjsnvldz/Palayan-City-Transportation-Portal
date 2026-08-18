@@ -451,9 +451,9 @@ tbody tr:hover td { background: var(--surface-hover); color: var(--text-primary)
 .skeleton-card { padding: 1.25rem; border: 1px solid var(--border); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: 0.75rem; }
 .skeleton-line { height: 12px; border-radius: 4px; }
 .skeleton-line.w-full { width: 100%; }
-.skeleton-line.w-3/4  { width: 75%; }
-.skeleton-line.w-1/2  { width: 50%; }
-.skeleton-line.w-1/4  { width: 25%; }
+.skeleton-line.w-75   { width: 75%; }
+.skeleton-line.w-50   { width: 50%; }
+.skeleton-line.w-25   { width: 25%; }
 .skeleton-line.h-8    { height: 32px; }
 
 /* ── Animations ─────────────────────────────────────────────── */
