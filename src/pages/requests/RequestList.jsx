@@ -4,33 +4,41 @@ import { requestApi, assignmentApi, authApi, vehicleApi } from '../../services/a
 import { useToast } from '../../hooks/useToast';
 import StatusBadge from '../../components/StatusBadge';
 import { formatTime12, calculateDuration } from '../../utils/timeFormat';
-import { Search, CheckCircle, XCircle, UserCheck, ChevronDown, ChevronUp, X, Plus, Clock, ArrowRight } from 'lucide-react';
+import { Search, CheckCircle, XCircle, UserCheck, ChevronDown, ChevronUp, X, Plus, Clock, ArrowRight, Edit2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-// ── Assign Modal ──────────────────────────────────────────────
+// ── Assign / Edit Assignment Modal ────────────────────────────
 function AssignModal({ request, onClose, onAssigned }) {
   const [drivers,   setDrivers]   = useState([]);
   const [vehicles,  setVehicles]  = useState([]);
-  const [driverId,  setDriverId]  = useState('');
-  const [vehicleId, setVehicleId] = useState('');
+  const [driverId,  setDriverId]  = useState(request.assignment?.driver_id?.toString() || '');
+  const [vehicleId, setVehicleId] = useState(request.assignment?.vehicle_id?.toString() || '');
   const [loading,   setLoading]   = useState(false);
   const { toast } = useToast();
 
+  const isEditing = request.status === 'approved' && !!request.assignment;
   const dep = request.departure_time || request.requested_time;
   const arr = request.arrival_time;
   const duration = request.trip_duration || (dep && arr ? calculateDuration(dep, arr).formatted : '');
 
   useEffect(() => {
     authApi.getUsers().then(r => setDrivers(r.data.filter(u => u.role === 'driver')));
-    vehicleApi.list().then(r => setVehicles(r.data.filter(v => v.status === 'available')));
-  }, []);
+    vehicleApi.list().then(r => {
+      const currentVehId = request.assignment?.vehicle_id;
+      setVehicles(r.data.filter(v => v.status === 'available' || v.id === currentVehId));
+    });
+  }, [request]);
 
   const handleAssign = async () => {
     if (!driverId || !vehicleId) { toast({ type: 'warning', title: 'Select both driver and vehicle' }); return; }
     setLoading(true);
     try {
-      await assignmentApi.create({ request_id: request.id, driver_id: parseInt(driverId), vehicle_id: parseInt(vehicleId) });
-      toast({ type: 'success', title: 'Driver & Vehicle Assigned!' });
+      await assignmentApi.create({ request_id: request.id, driver_id: parseInt(driverId, 10), vehicle_id: parseInt(vehicleId, 10) });
+      toast({
+        type: 'success',
+        title: isEditing ? 'Assignment Updated!' : 'Request Approved & Assigned!',
+        message: isEditing ? 'Assigned driver and vehicle have been updated.' : 'Driver and vehicle successfully assigned.'
+      });
       onAssigned();
     } catch (err) {
       toast({ type: 'error', title: 'Error', message: err.response?.data?.error });
@@ -41,7 +49,7 @@ function AssignModal({ request, onClose, onAssigned }) {
     <div className="modal-overlay">
       <div className="modal">
         <div className="modal-header">
-          <h3>Assign Driver & Vehicle</h3>
+          <h3>{isEditing ? 'Edit Assigned Driver & Vehicle' : 'Approve & Assign Vehicle'}</h3>
           <button className="modal-close" onClick={onClose}><X size={14} /></button>
         </div>
         <div className="modal-body">
@@ -66,24 +74,28 @@ function AssignModal({ request, onClose, onAssigned }) {
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Driver</label>
+            <label className="form-label">Select Driver</label>
             <select className="form-control" value={driverId} onChange={e => setDriverId(e.target.value)}>
               <option value="">-- Select driver --</option>
               {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Vehicle</label>
+            <label className="form-label">Select Vehicle</label>
             <select className="form-control" value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
               <option value="">-- Select vehicle --</option>
-              {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.plate_no}) · {v.capacity} seats · {v.fuel_level?.toFixed(0)}% fuel</option>)}
+              {vehicles.map(v => (
+                <option key={v.id} value={v.id}>
+                  {v.name} ({v.plate_no}) · {v.capacity} seats · {v.fuel_level?.toFixed(0)}% fuel {v.id === request.assignment?.vehicle_id ? '(Current)' : ''}
+                </option>
+              ))}
             </select>
           </div>
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button className={`btn btn-primary${loading ? ' btn-loading' : ''}`} onClick={handleAssign} disabled={loading} id="confirm-assign">
-            {!loading && <><UserCheck size={16} /> Assign</>}
+            {!loading && <><UserCheck size={16} /> {isEditing ? 'Save Changes' : 'Approve & Assign'}</>}
           </button>
         </div>
       </div>
@@ -127,7 +139,7 @@ function DenyModal({ request, onClose, onDenied }) {
 }
 
 // ── Request Row (desktop table) ───────────────────────────────
-function RequestRow({ r, isAdmin, onApprove, onDeny, onAssign }) {
+function RequestRow({ r, isAdmin, onApprove, onEdit, onDeny }) {
   const [expanded, setExpanded] = useState(false);
   const dep = r.departure_time || r.requested_time;
   const arr = r.arrival_time;
@@ -162,18 +174,21 @@ function RequestRow({ r, isAdmin, onApprove, onDeny, onAssign }) {
         </td>
         <td><StatusBadge status={r.status} /></td>
         <td onClick={e => e.stopPropagation()}>
-          <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
             {isAdmin && r.status === 'pending' && <>
-              <button className="btn btn-sm btn-success" onClick={() => onApprove(r.id)} title="Approve"><CheckCircle size={13} /></button>
-              <button className="btn btn-sm btn-secondary" onClick={() => onAssign(r)} title="Assign"><UserCheck size={13} /></button>
-              <button className="btn btn-sm btn-danger" onClick={() => onDeny(r)} title="Deny"><XCircle size={13} /></button>
+              <button className="btn btn-sm btn-success" onClick={() => onApprove(r)} title="Approve & Assign Vehicle">
+                <CheckCircle size={13} /> Approve
+              </button>
+              <button className="btn btn-sm btn-danger" onClick={() => onDeny(r)} title="Deny">
+                <XCircle size={13} />
+              </button>
             </>}
-            {isAdmin && r.status === 'approved' && !r.assignment && (
-              <button className="btn btn-sm btn-secondary" onClick={() => onAssign(r)}>
-                <UserCheck size={13} /> Assign
+            {isAdmin && r.status === 'approved' && (
+              <button className="btn btn-sm btn-secondary" onClick={() => onEdit(r)} title="Edit Assigned Driver & Vehicle">
+                <Edit2 size={13} /> Edit
               </button>
             )}
-            <button className="btn btn-sm btn-secondary btn-icon" style={{ marginLeft: 2 }}>
+            <button className="btn btn-sm btn-secondary btn-icon" style={{ marginLeft: 2 }} onClick={() => setExpanded(!expanded)}>
               {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
             </button>
           </div>
@@ -212,7 +227,7 @@ function RequestRow({ r, isAdmin, onApprove, onDeny, onAssign }) {
 }
 
 // ── Mobile Card ───────────────────────────────────────────────
-function RequestMobileCard({ r, isAdmin, onApprove, onDeny, onAssign }) {
+function RequestMobileCard({ r, isAdmin, onApprove, onEdit, onDeny }) {
   const [expanded, setExpanded] = useState(false);
   const dep = r.departure_time || r.requested_time;
   const arr = r.arrival_time;
@@ -257,12 +272,17 @@ function RequestMobileCard({ r, isAdmin, onApprove, onDeny, onAssign }) {
       )}
       <div className="mobile-card-actions">
         {isAdmin && r.status === 'pending' && <>
-          <button className="btn btn-sm btn-success" onClick={() => onApprove(r.id)}><CheckCircle size={13} /> Approve</button>
-          <button className="btn btn-sm btn-secondary" onClick={() => onAssign(r)}><UserCheck size={13} /> Assign</button>
-          <button className="btn btn-sm btn-danger" onClick={() => onDeny(r)}><XCircle size={13} /> Deny</button>
+          <button className="btn btn-sm btn-success" onClick={() => onApprove(r)}>
+            <CheckCircle size={13} /> Approve
+          </button>
+          <button className="btn btn-sm btn-danger" onClick={() => onDeny(r)}>
+            <XCircle size={13} /> Deny
+          </button>
         </>}
-        {isAdmin && r.status === 'approved' && !r.assignment && (
-          <button className="btn btn-sm btn-secondary" onClick={() => onAssign(r)}><UserCheck size={13} /> Assign Vehicle</button>
+        {isAdmin && r.status === 'approved' && (
+          <button className="btn btn-sm btn-secondary" onClick={() => onEdit(r)}>
+            <Edit2 size={13} /> Edit Assignment
+          </button>
         )}
         <button className="btn btn-sm btn-secondary" onClick={() => setExpanded(!expanded)} style={{ marginLeft: 'auto' }}>
           {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -291,9 +311,13 @@ export default function RequestList() {
   };
   useEffect(() => { loadData(); }, []);
 
-  const handleApprove = async (id) => {
-    try { await requestApi.approve(id); toast({ type: 'success', title: 'Approved!' }); loadData(); }
-    catch (err) { toast({ type: 'error', title: 'Error', message: err.response?.data?.error }); }
+  // When approving or editing, open the Assign modal
+  const handleApprove = (request) => {
+    setAssignTarget(request);
+  };
+
+  const handleEdit = (request) => {
+    setAssignTarget(request);
   };
 
   const filtered = requests.filter(r => {
@@ -368,7 +392,7 @@ export default function RequestList() {
               </thead>
               <tbody>
                 {filtered.map(r => (
-                  <RequestRow key={r.id} r={r} isAdmin={isAdmin} onApprove={handleApprove} onDeny={setDenyTarget} onAssign={setAssignTarget} />
+                  <RequestRow key={r.id} r={r} isAdmin={isAdmin} onApprove={handleApprove} onEdit={handleEdit} onDeny={setDenyTarget} />
                 ))}
               </tbody>
             </table>
@@ -376,14 +400,26 @@ export default function RequestList() {
           {/* Mobile cards */}
           <div className="mobile-card-list">
             {filtered.map(r => (
-              <RequestMobileCard key={r.id} r={r} isAdmin={isAdmin} onApprove={handleApprove} onDeny={setDenyTarget} onAssign={setAssignTarget} />
+              <RequestMobileCard key={r.id} r={r} isAdmin={isAdmin} onApprove={handleApprove} onEdit={handleEdit} onDeny={setDenyTarget} />
             ))}
           </div>
         </>
       )}
 
-      {assignTarget && <AssignModal request={assignTarget} onClose={() => setAssignTarget(null)} onAssigned={() => { setAssignTarget(null); loadData(); }} />}
-      {denyTarget   && <DenyModal   request={denyTarget}   onClose={() => setDenyTarget(null)}   onDenied={() => { setDenyTarget(null); loadData(); }} />}
+      {assignTarget && (
+        <AssignModal
+          request={assignTarget}
+          onClose={() => setAssignTarget(null)}
+          onAssigned={() => { setAssignTarget(null); loadData(); }}
+        />
+      )}
+      {denyTarget && (
+        <DenyModal
+          request={denyTarget}
+          onClose={() => setDenyTarget(null)}
+          onDenied={() => { setDenyTarget(null); loadData(); }}
+        />
+      )}
     </div>
   );
 }

@@ -6,32 +6,40 @@ import StatusBadge from '../../components/StatusBadge';
 import { formatTime12, calculateDuration } from '../../utils/timeFormat';
 import {
   FileText, Car, Activity, CheckCircle, XCircle, Clock,
-  Wrench, MapPin, Users, ChevronRight, UserCheck, AlertCircle, ArrowRight
+  Wrench, MapPin, Users, ChevronRight, UserCheck, AlertCircle, ArrowRight, Edit2
 } from 'lucide-react';
 
 function AssignModal({ request, onClose, onAssigned }) {
   const [drivers, setDrivers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
-  const [driverId, setDriverId] = useState('');
-  const [vehicleId, setVehicleId] = useState('');
+  const [driverId, setDriverId] = useState(request.assignment?.driver_id?.toString() || '');
+  const [vehicleId, setVehicleId] = useState(request.assignment?.vehicle_id?.toString() || '');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  const isEditing = request.status === 'approved' && !!request.assignment;
   const dep = request.departure_time || request.requested_time;
   const arr = request.arrival_time;
   const duration = request.trip_duration || (dep && arr ? calculateDuration(dep, arr).formatted : '');
 
   useEffect(() => {
     authApi.getUsers().then(r => setDrivers(r.data.filter(u => u.role === 'driver')));
-    vehicleApi.list().then(r => setVehicles(r.data.filter(v => v.status === 'available')));
-  }, []);
+    vehicleApi.list().then(r => {
+      const currentVehId = request.assignment?.vehicle_id;
+      setVehicles(r.data.filter(v => v.status === 'available' || v.id === currentVehId));
+    });
+  }, [request]);
 
   const handleAssign = async () => {
     if (!driverId || !vehicleId) { toast({ type: 'warning', title: 'Select both driver and vehicle' }); return; }
     setLoading(true);
     try {
-      await assignmentApi.create({ request_id: request.id, driver_id: parseInt(driverId), vehicle_id: parseInt(vehicleId) });
-      toast({ type: 'success', title: 'Assigned!', message: 'Driver and vehicle assigned successfully' });
+      await assignmentApi.create({ request_id: request.id, driver_id: parseInt(driverId, 10), vehicle_id: parseInt(vehicleId, 10) });
+      toast({
+        type: 'success',
+        title: isEditing ? 'Assignment Updated!' : 'Request Approved & Assigned!',
+        message: isEditing ? 'Driver and vehicle assignment updated successfully.' : 'Driver and vehicle assigned successfully.'
+      });
       onAssigned();
     } catch (err) {
       toast({ type: 'error', title: 'Error', message: err.response?.data?.error || 'Failed to assign' });
@@ -44,7 +52,7 @@ function AssignModal({ request, onClose, onAssigned }) {
     <div className="modal-overlay">
       <div className="modal">
         <div className="modal-header">
-          <h3>Assign Driver & Vehicle</h3>
+          <h3>{isEditing ? 'Edit Assigned Driver & Vehicle' : 'Approve & Assign Vehicle'}</h3>
           <button className="modal-close" onClick={onClose}><XCircle size={14} /></button>
         </div>
         <div className="modal-body">
@@ -80,7 +88,9 @@ function AssignModal({ request, onClose, onAssigned }) {
             <select className="form-control" value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
               <option value="">-- Choose a vehicle --</option>
               {vehicles.map(v => (
-                <option key={v.id} value={v.id}>{v.name} ({v.plate_no}) — {v.capacity} seats, {v.fuel_level?.toFixed(0)}% fuel</option>
+                <option key={v.id} value={v.id}>
+                  {v.name} ({v.plate_no}) — {v.capacity} seats, {v.fuel_level?.toFixed(0)}% fuel {v.id === request.assignment?.vehicle_id ? '(Current)' : ''}
+                </option>
               ))}
             </select>
           </div>
@@ -88,7 +98,7 @@ function AssignModal({ request, onClose, onAssigned }) {
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button className={`btn btn-primary${loading ? ' btn-loading' : ''}`} onClick={handleAssign} disabled={loading}>
-            {!loading && <><UserCheck size={16} /> Assign</>}
+            {!loading && <><UserCheck size={16} /> {isEditing ? 'Save Changes' : 'Approve & Assign'}</>}
           </button>
         </div>
       </div>
@@ -156,12 +166,9 @@ export default function AdminDashboard() {
 
   useEffect(() => { loadData(); }, []);
 
-  const handleApprove = async (id) => {
-    try {
-      await requestApi.approve(id);
-      toast({ type: 'success', title: 'Request Approved!' });
-      loadData();
-    } catch (err) { toast({ type: 'error', title: 'Error', message: err.response?.data?.error }); }
+  // When clicking Approve, open the Assign modal without updating DB status beforehand
+  const handleApprove = (request) => {
+    setAssignTarget(request);
   };
 
   if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading dashboard…</div>;
@@ -244,11 +251,8 @@ export default function AdminDashboard() {
                         </td>
                         <td>
                           <div className="flex gap-1" style={{ flexWrap: 'wrap' }}>
-                            <button className="btn btn-sm btn-success" onClick={() => handleApprove(r.id)} title="Approve">
-                              <CheckCircle size={12} />
-                            </button>
-                            <button className="btn btn-sm btn-secondary" onClick={() => setAssignTarget(r)} title="Assign Driver & Vehicle">
-                              <UserCheck size={12} /> Assign
+                            <button className="btn btn-sm btn-success" onClick={() => handleApprove(r)} title="Approve & Assign Vehicle">
+                              <CheckCircle size={12} /> Approve
                             </button>
                             <button className="btn btn-sm btn-danger" onClick={() => setDenyTarget(r)} title="Deny">
                               <XCircle size={12} />
