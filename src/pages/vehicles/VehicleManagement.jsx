@@ -125,26 +125,12 @@ export default function VehicleManagement() {
       ) : viewMode === 'grid' ? (
         <div className="grid grid-3">
           {vehicles.map(v => (
-            <div key={v.id} style={{ position: 'relative' }}>
-              <VehicleCard vehicle={v} />
-              <div style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', display: 'flex', gap: '0.25rem' }}>
-                <button
-                  className="btn btn-sm btn-secondary btn-icon"
-                  onClick={() => { setEditTarget(v); setShowModal(true); }}
-                  title="Edit"
-                >
-                  <Edit2 size={12} />
-                </button>
-                <button
-                  className="btn btn-sm btn-danger btn-icon"
-                  onClick={() => handleDelete(v.id)}
-                  title="Remove"
-                  disabled={v.status === 'in_use'}
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            </div>
+            <VehicleCard
+              key={v.id}
+              vehicle={v}
+              onEdit={veh => { setEditTarget(veh); setShowModal(true); }}
+              onDelete={handleDelete}
+            />
           ))}
         </div>
       ) : (
