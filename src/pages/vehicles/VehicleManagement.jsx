@@ -3,6 +3,7 @@ import { vehicleApi } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
 import StatusBadge from '../../components/StatusBadge';
 import VehicleCard from '../../components/VehicleCard';
+import ConfirmModal from '../../components/ConfirmModal';
 import { Plus, Edit2, Trash2, X, Car } from 'lucide-react';
 
 const VEHICLE_TYPES = ['Van', 'SUV', 'Pickup', 'Ambulance', 'Sedan', 'Bus', 'Truck'];
@@ -85,19 +86,31 @@ export default function VehicleManagement() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'table'
   const { toast } = useToast();
 
   const loadData = () => { vehicleApi.list().then(r => setVehicles(r.data)).finally(() => setLoading(false)); };
   useEffect(() => { loadData(); }, []);
 
-  const handleDelete = async (id) => {
-    if (!confirm('Remove this vehicle?')) return;
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await vehicleApi.delete(id);
-      toast({ type: 'success', title: 'Vehicle Removed' });
+      await vehicleApi.delete(deleteTarget.id);
+      toast({
+        type: 'success',
+        title: 'Vehicle Removed',
+        message: `${deleteTarget.name} (${deleteTarget.plate_no}) has been deleted.`
+      });
+      setDeleteTarget(null);
       loadData();
-    } catch (err) { toast({ type: 'error', title: 'Error', message: err.response?.data?.error }); }
+    } catch (err) {
+      toast({ type: 'error', title: 'Error', message: err.response?.data?.error || 'Failed to remove vehicle' });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const available   = vehicles.filter(v => v.status === 'available').length;
@@ -129,7 +142,7 @@ export default function VehicleManagement() {
               key={v.id}
               vehicle={v}
               onEdit={veh => { setEditTarget(veh); setShowModal(true); }}
-              onDelete={handleDelete}
+              onDelete={() => setDeleteTarget(v)}
             />
           ))}
         </div>
@@ -152,7 +165,7 @@ export default function VehicleManagement() {
                       <button className="btn btn-sm btn-secondary" onClick={() => { setEditTarget(v); setShowModal(true); }}>
                         <Edit2 size={12} /> Edit
                       </button>
-                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(v.id)} disabled={v.status === 'in_use'}>
+                      <button className="btn btn-sm btn-danger" onClick={() => setDeleteTarget(v)} disabled={v.status === 'in_use'}>
                         <Trash2 size={12} />
                       </button>
                     </div>
@@ -169,6 +182,20 @@ export default function VehicleManagement() {
           vehicle={editTarget}
           onClose={() => setShowModal(false)}
           onSaved={() => { setShowModal(false); loadData(); }}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          isOpen={true}
+          title="Remove Vehicle"
+          message={`Are you sure you want to remove ${deleteTarget.name} (${deleteTarget.plate_no}) from the fleet?`}
+          confirmText="Yes, Remove"
+          cancelText="Cancel"
+          type="danger"
+          loading={deleting}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={handleConfirmDelete}
         />
       )}
     </div>

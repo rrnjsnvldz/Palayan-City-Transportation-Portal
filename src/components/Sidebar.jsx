@@ -1,6 +1,10 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LayoutDashboard, Car, FileText, Users, Truck, ClipboardList, LogOut, ShieldCheck, X, Calendar } from 'lucide-react';
+import {
+  LayoutDashboard, Car, FileText, Users, Truck, ClipboardList,
+  LogOut, ShieldCheck, X, Calendar, AlertTriangle
+} from 'lucide-react';
 
 const ROLE_NAVS = {
   requestor: [
@@ -28,12 +32,71 @@ function getInitials(name = '') {
   return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
 }
 
+function LogoutConfirmModal({ user, onClose, onConfirm }) {
+  return (
+    <div className="modal-overlay" style={{ zIndex: 400 }}>
+      <div className="modal" style={{ maxWidth: 420, textAlign: 'center', padding: '1.75rem 1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1.5px solid rgba(239, 68, 68, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--accent-red)',
+            marginBottom: '1rem',
+            boxShadow: '0 0 24px rgba(239, 68, 68, 0.2)'
+          }}>
+            <LogOut size={26} />
+          </div>
+
+          <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)', marginBottom: '0.4rem', fontFamily: 'Montserrat', fontWeight: 800 }}>
+            Sign Out Confirmation
+          </h3>
+
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.5, margin: '0 0 1.5rem 0' }}>
+            Are you sure you want to sign out, <strong style={{ color: 'var(--text-primary)' }}>{user?.name}</strong>? You will need to sign in again to access the portal.
+          </p>
+
+          <div style={{ display: 'flex', gap: '0.75rem', width: '100%', justifyContent: 'center' }}>
+            <button className="btn btn-secondary" onClick={onClose} style={{ flex: 1 }}>
+              Cancel
+            </button>
+            <button
+              id="confirm-logout-btn"
+              className="btn btn-danger"
+              onClick={onConfirm}
+              style={{ flex: 1 }}
+            >
+              <LogOut size={15} /> Yes, Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Sidebar({ isOpen, onClose }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const navItems = ROLE_NAVS[user?.role] || [];
 
-  const handleLogout = () => { logout(); navigate('/login'); onClose?.(); };
+  const handleLogoutClick = () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setShowLogoutModal(false);
+    logout();
+    navigate('/login');
+    onClose?.();
+  };
+
   const handleNav = () => onClose?.();
 
   return (
@@ -92,11 +155,26 @@ export default function Sidebar({ isOpen, onClose }) {
             <strong title={user?.name}>{user?.name}</strong>
             <span>{user?.department || user?.role}</span>
           </div>
-          <button className="logout-btn" onClick={handleLogout} title="Logout" aria-label="Logout">
+          <button
+            id="sidebar-logout-btn"
+            className="logout-btn"
+            onClick={handleLogoutClick}
+            title="Sign Out"
+            aria-label="Logout"
+          >
             <LogOut size={15} />
           </button>
         </div>
       </aside>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <LogoutConfirmModal
+          user={user}
+          onClose={() => setShowLogoutModal(false)}
+          onConfirm={handleConfirmLogout}
+        />
+      )}
     </>
   );
 }

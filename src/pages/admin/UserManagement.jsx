@@ -1,104 +1,115 @@
 import { useState, useEffect } from 'react';
 import { authApi } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
-import { Plus, Trash2, X, ShieldCheck, Car, Truck, User } from 'lucide-react';
+import ConfirmModal from '../../components/ConfirmModal';
+import { Plus, Trash2, X, ShieldCheck, UserCheck, Truck, Users } from 'lucide-react';
 
-const ROLE_CONFIG = {
-  admin:     { icon: ShieldCheck, color: '#c9a84c', label: 'Admin' },
-  requestor: { icon: Car,         color: '#3b82f6', label: 'Requestor' },
-  driver:    { icon: Truck,       color: '#14b8a6', label: 'Driver' },
-};
-
+const ROLES = ['admin', 'requestor', 'driver'];
 const DEPARTMENTS = [
   'City Administrator', 'City Planning Office', 'Health Department', 'Engineering Office',
-  'Social Welfare', 'Motor Pool', 'Treasurer\'s Office', 'Human Resources', 'Other'
+  'Social Welfare', 'Agriculture Office', "Treasurer's Office", 'Civil Registry',
+  'Human Resources', 'Disaster Risk Reduction', 'General Services', 'Other'
 ];
 
 function AddUserModal({ onClose, onAdded }) {
-  const [form, setForm] = useState({ name: '', email: '', password: 'pass123', role: 'requestor', department: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'requestor', department: '' });
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleAdd = async () => {
-    if (!form.name || !form.email || !form.password) { toast({ type: 'warning', title: 'Fill all required fields' }); return; }
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!form.name || !form.email || !form.password) { toast({ type: 'warning', title: 'Name, Email & Password required' }); return; }
     setLoading(true);
     try {
       await authApi.createUser(form);
-      toast({ type: 'success', title: 'User Created!' });
+      toast({ type: 'success', title: 'User Created', message: `${form.name} (${form.role}) added successfully` });
       onAdded();
     } catch (err) {
-      toast({ type: 'error', title: 'Error', message: err.response?.data?.error });
+      toast({ type: 'error', title: 'Error', message: err.response?.data?.error || 'Failed to create user' });
     } finally { setLoading(false); }
   };
 
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ maxWidth: 460 }}>
         <div className="modal-header">
           <h3>Add New User</h3>
           <button className="modal-close" onClick={onClose}><X size={14} /></button>
         </div>
-        <div className="modal-body">
-          <div className="form-group">
-            <label className="form-label">Full Name *</label>
-            <input id="user-name" className="form-control" placeholder="Juan Dela Cruz" value={form.name} onChange={e => set('name', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Email *</label>
-            <input id="user-email" type="email" className="form-control" placeholder="user@palayan.gov.ph" value={form.email} onChange={e => set('email', e.target.value)} />
-          </div>
-          <div className="form-grid">
+        <form onSubmit={handleSave}>
+          <div className="modal-body">
             <div className="form-group">
-              <label className="form-label">Role *</label>
-              <select id="user-role" className="form-control" value={form.role} onChange={e => set('role', e.target.value)}>
-                <option value="requestor">Requestor</option>
-                <option value="driver">Driver</option>
-                <option value="admin">Admin</option>
-              </select>
+              <label className="form-label">Full Name *</label>
+              <input id="new-user-name" className="form-control" placeholder="e.g. Maria Santos" value={form.name} onChange={e => set('name', e.target.value)} required />
             </div>
             <div className="form-group">
-              <label className="form-label">Department</label>
-              <select id="user-dept" className="form-control" value={form.department} onChange={e => set('department', e.target.value)}>
-                <option value="">-- Select --</option>
-                {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
-              </select>
+              <label className="form-label">Email Address *</label>
+              <input id="new-user-email" type="email" className="form-control" placeholder="e.g. maria@palayan.gov.ph" value={form.email} onChange={e => set('email', e.target.value)} required />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Password *</label>
+              <input id="new-user-pass" type="password" className="form-control" placeholder="Min. 6 characters" value={form.password} onChange={e => set('password', e.target.value)} required minLength={6} />
+            </div>
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">System Role *</label>
+                <select id="new-user-role" className="form-control" value={form.role} onChange={e => set('role', e.target.value)}>
+                  {ROLES.map(r => <option key={r} value={r} style={{ textTransform: 'capitalize' }}>{r}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Department</label>
+                <select id="new-user-dept" className="form-control" value={form.department} onChange={e => set('department', e.target.value)}>
+                  <option value="">-- None / General --</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
             </div>
           </div>
-          <div className="form-group">
-            <label className="form-label">Initial Password *</label>
-            <input id="user-password" type="text" className="form-control" value={form.password} onChange={e => set('password', e.target.value)} />
-            <div className="form-hint">User should change this on first login</div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button id="save-user-btn" type="submit" className={`btn btn-primary${loading ? ' btn-loading' : ''}`} disabled={loading}>
+              {!loading && 'Create User'}
+            </button>
           </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button id="save-user" className={`btn btn-primary${loading ? ' btn-loading' : ''}`} onClick={handleAdd} disabled={loading}>
-            {!loading && <><Plus size={16} /> Create User</>}
-          </button>
-        </div>
+        </form>
       </div>
     </div>
   );
 }
 
+const ROLE_CONFIG = {
+  admin:     { label: 'Admin',     icon: ShieldCheck, color: '#c9a84c' },
+  requestor: { label: 'Requestor', icon: UserCheck,   color: '#3b82f6' },
+  driver:    { label: 'Driver',    icon: Truck,       color: '#22c55e' },
+};
+
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [roleFilter, setRoleFilter] = useState('all');
   const { toast } = useToast();
 
   const loadUsers = () => { authApi.getUsers().then(r => setUsers(r.data)).finally(() => setLoading(false)); };
   useEffect(() => { loadUsers(); }, []);
 
-  const handleDelete = async (id, name) => {
-    if (!confirm(`Remove user "${name}"?`)) return;
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await authApi.deleteUser(id);
-      toast({ type: 'success', title: 'User removed' });
+      await authApi.deleteUser(deleteTarget.id);
+      toast({ type: 'success', title: 'User Removed', message: `${deleteTarget.name} has been removed.` });
+      setDeleteTarget(null);
       loadUsers();
-    } catch (err) { toast({ type: 'error', title: 'Error', message: err.response?.data?.error }); }
+    } catch (err) {
+      toast({ type: 'error', title: 'Error', message: err.response?.data?.error || 'Failed to remove user' });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const filtered = roleFilter === 'all' ? users : users.filter(u => u.role === roleFilter);
@@ -128,15 +139,15 @@ export default function UserManagement() {
 
       <div className="table-container">
         {loading ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading...</div>
         ) : (
           <table>
             <thead>
-              <tr><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Joined</th><th>Actions</th></tr>
+              <tr><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Created</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {filtered.map(u => {
-                const RoleIcon = ROLE_CONFIG[u.role]?.icon || User;
+                const RoleIcon = ROLE_CONFIG[u.role]?.icon || Users;
                 const roleColor = ROLE_CONFIG[u.role]?.color || '#64748b';
                 return (
                   <tr key={u.id}>
@@ -158,7 +169,7 @@ export default function UserManagement() {
                     <td style={{ fontSize: '0.8rem' }}>{u.department || '—'}</td>
                     <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(u.created_at).toLocaleDateString()}</td>
                     <td>
-                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(u.id, u.name)}>
+                      <button className="btn btn-sm btn-danger" onClick={() => setDeleteTarget(u)} title="Remove User">
                         <Trash2 size={12} />
                       </button>
                     </td>
@@ -171,6 +182,20 @@ export default function UserManagement() {
       </div>
 
       {showModal && <AddUserModal onClose={() => setShowModal(false)} onAdded={() => { setShowModal(false); loadUsers(); }} />}
+
+      {deleteTarget && (
+        <ConfirmModal
+          isOpen={true}
+          title="Remove User"
+          message={`Are you sure you want to remove user "${deleteTarget.name}" (${deleteTarget.email})?`}
+          confirmText="Yes, Remove"
+          cancelText="Cancel"
+          type="danger"
+          loading={deleting}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
     </div>
   );
 }
