@@ -2,11 +2,27 @@ import { useState, useEffect, useMemo } from 'react';
 import { authApi, vehicleApi, assignmentApi } from '../services/api';
 import { useToast } from '../hooks/useToast';
 import { formatTime12, calculateDuration } from '../utils/timeFormat';
-import { X, UserCheck, ArrowRight, AlertTriangle, Users, Car, Loader2 } from 'lucide-react';
+import { X, UserCheck, ArrowRight, AlertTriangle, Users, Car } from 'lucide-react';
+
+function timeToMinutes(t) {
+  if (!t) return 0;
+  const parts = t.toString().split(':');
+  return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+}
+
+function hasTimeOverlap(depA, arrA, depB, arrB) {
+  const startA = timeToMinutes(depA || '08:00');
+  const endA = arrA ? timeToMinutes(arrA) : startA + 240;
+  const startB = timeToMinutes(depB || '08:00');
+  const endB = arrB ? timeToMinutes(arrB) : startB + 240;
+
+  return startA < endB && startB < endA;
+}
 
 export default function AssignModal({ request, onClose, onAssigned }) {
-  const [drivers, setDrivers] = useState([]);
+  const [rawDrivers, setRawDrivers] = useState([]);
   const [allVehicles, setAllVehicles] = useState([]);
+  const [allAssignments, setAllAssignments] = useState([]);
   const [driverId, setDriverId] = useState(request.assignment?.driver_id?.toString() || '');
   const [vehicleId, setVehicleId] = useState(request.assignment?.vehicle_id?.toString() || '');
   const [dataLoading, setDataLoading] = useState(true);
@@ -16,7 +32,7 @@ export default function AssignModal({ request, onClose, onAssigned }) {
   const isEditing = request.status === 'approved' && !!request.assignment;
   const requiredPax = parseInt(request.pax_count, 10) || 1;
 
-  const dep = request.departure_time || request.requested_time;
+  const dep = request.departure_time || request.requested_time || '08:00';
   const arr = request.arrival_time;
   const duration = request.trip_duration || (dep && arr ? calculateDuration(dep, arr).formatted : '');
 
@@ -24,11 +40,13 @@ export default function AssignModal({ request, onClose, onAssigned }) {
     setDataLoading(true);
     Promise.all([
       authApi.getUsers(),
-      vehicleApi.list()
+      vehicleApi.list(),
+      assignmentApi.list()
     ])
-      .then(([usersRes, vehiclesRes]) => {
-        setDrivers(usersRes.data.filter(u => u.role === 'driver'));
+      .then(([usersRes, vehiclesRes, assignmentsRes]) => {
+        setRawDrivers(usersRes.data.filter(u => u.role === 'driver'));
         setAllVehicles(vehiclesRes.data || []);
+        setAllAssignments(assignmentsRes.data || []);
       })
       .catch(err => {
         console.error('Failed to load assignment options', err);
@@ -38,7 +56,48 @@ export default function AssignModal({ request, onClose, onAssigned }) {
       });
   }, []);
 
-  // Group all vehicles by their seat capacity in ascending order
+  // Process Drivers with date & time schedule overlap detection
+  const processedDrivers = useMemo(() => {
+    const currentDriverId = request.assignment?.driver_id;
+
+    return rawDrivers.map(d => {
+      const isCurrent = d.id === currentDriverId;
+
+      // Find any conflicting active/approved assignment on the same date and overlapping time
+      const conflict = allAssignments.find(a => {
+        if (a.request_id === request.id) return false;
+        if (a.driver_id !== d.id) return false;
+        if (a.ended_at) return false;
+        if (!['approved', 'in_progress'].includes(a.request_status)) return false;
+        if (a.requested_date !== request.requested_date) return false;
+
+        return hasTimeOverlap(dep, arr, a.departure_time || a.requested_time, a.arrival_time);
+      });
+
+      let disabledReason = '';
+      let isEligible = true;
+
+      if (conflict) {
+        isEligible = false;
+        const conflictDep = formatTime12(conflict.departure_time || conflict.requested_time);
+        const conflictArr = conflict.arrival_time ? formatTime12(conflict.arrival_time) : 'end';
+        disabledReason = `[Disabled: Assigned to "${conflict.destination}" (${conflictDep} - ${conflictArr})]`;
+      }
+
+      return {
+        ...d,
+        isCurrent,
+        isEligible,
+        disabledReason,
+      };
+    });
+  }, [rawDrivers, allAssignments, request, dep, arr]);
+
+  const availableDriversCount = useMemo(() => {
+    return processedDrivers.filter(d => d.isEligible).length;
+  }, [processedDrivers]);
+
+  // Group all vehicles by seat capacity with capacity & schedule overlap detection
   const capacityGroups = useMemo(() => {
     const distinctCapacities = [...new Set(allVehicles.map(v => v.capacity))].sort((a, b) => a - b);
     const currentVehId = request.assignment?.vehicle_id;
@@ -50,14 +109,30 @@ export default function AssignModal({ request, onClose, onAssigned }) {
         .filter(v => v.capacity === cap)
         .map(v => {
           const isCurrent = v.id === currentVehId;
-          const isAvailable = v.status === 'available' || isCurrent;
+          const isAvailableStatus = v.status === 'available' || isCurrent;
           const hasCapacity = (v.capacity || 0) >= requiredPax;
-          const isEligible = isAvailable && hasCapacity;
+
+          // Check if vehicle is already assigned to another overlapping trip on this date/time
+          const conflict = allAssignments.find(a => {
+            if (a.request_id === request.id) return false;
+            if (a.vehicle_id !== v.id) return false;
+            if (a.ended_at) return false;
+            if (!['approved', 'in_progress'].includes(a.request_status)) return false;
+            if (a.requested_date !== request.requested_date) return false;
+
+            return hasTimeOverlap(dep, arr, a.departure_time || a.requested_time, a.arrival_time);
+          });
 
           let disabledReason = '';
+          let isEligible = isAvailableStatus && hasCapacity && !conflict;
+
           if (!hasCapacity) {
             disabledReason = `[Disabled: Insufficient capacity (${v.capacity}/${requiredPax} pax)]`;
-          } else if (!isAvailable) {
+          } else if (conflict) {
+            const conflictDep = formatTime12(conflict.departure_time || conflict.requested_time);
+            const conflictArr = conflict.arrival_time ? formatTime12(conflict.arrival_time) : 'end';
+            disabledReason = `[Disabled: Assigned to "${conflict.destination}" (${conflictDep} - ${conflictArr})]`;
+          } else if (!isAvailableStatus) {
             disabledReason = `[Disabled: Vehicle is ${v.status}]`;
           }
 
@@ -69,17 +144,30 @@ export default function AssignModal({ request, onClose, onAssigned }) {
           };
         })
     }));
-  }, [allVehicles, request, requiredPax]);
+  }, [allVehicles, allAssignments, request, requiredPax, dep, arr]);
 
-  // Total count of available vehicles that can fit the required passengers
+  // Total count of available vehicles that can fit the required passengers and have no schedule conflict
   const eligibleCount = useMemo(() => {
-    const currentVehId = request.assignment?.vehicle_id;
-    return allVehicles.filter(v => (v.status === 'available' || v.id === currentVehId) && (v.capacity || 0) >= requiredPax).length;
-  }, [allVehicles, request, requiredPax]);
+    let count = 0;
+    capacityGroups.forEach(g => {
+      count += g.vehicles.filter(v => v.isEligible).length;
+    });
+    return count;
+  }, [capacityGroups]);
 
   const handleAssign = async () => {
     if (!driverId || !vehicleId) {
       toast({ type: 'warning', title: 'Selection Required', message: 'Please select both a driver and a vehicle.' });
+      return;
+    }
+
+    const selectedDriver = processedDrivers.find(d => d.id.toString() === driverId.toString());
+    if (selectedDriver && !selectedDriver.isEligible) {
+      toast({
+        type: 'error',
+        title: 'Driver Unavailable',
+        message: selectedDriver.disabledReason || 'Selected driver is assigned to another trip on this date/time.'
+      });
       return;
     }
 
@@ -157,11 +245,11 @@ export default function AssignModal({ request, onClose, onAssigned }) {
             </div>
           </div>
 
-          {/* Driver Selection */}
+          {/* Driver Selection with Schedule Conflict Detection */}
           <div className="form-group">
             <label className="form-label" htmlFor="assign-driver-select">
               <Users size={13} style={{ display: 'inline', marginRight: 4 }} />
-              Assign Driver <span style={{ color: 'var(--accent-red)' }}>*</span>
+              Assign Driver (Schedule Check) <span style={{ color: 'var(--accent-red)' }}>*</span>
             </label>
             <select
               id="assign-driver-select"
@@ -172,15 +260,34 @@ export default function AssignModal({ request, onClose, onAssigned }) {
               required
             >
               <option value="">{dataLoading ? '-- Loading drivers… --' : '-- Choose an official driver --'}</option>
-              {drivers.map(d => (
-                <option key={d.id} value={d.id}>
-                  {d.name} ({d.email}) {d.id === request.assignment?.driver_id ? '★ Current' : ''}
+              {processedDrivers.map(d => (
+                <option
+                  key={d.id}
+                  value={d.id}
+                  disabled={!d.isEligible}
+                  style={{
+                    background: d.isEligible ? '#131d31' : '#0c121e',
+                    color: d.isEligible ? '#f1f5f9' : '#64748b',
+                    fontWeight: d.isEligible ? '500' : 'normal'
+                  }}
+                >
+                  {d.name} ({d.email}) {d.isCurrent ? '★ Current' : ''} {d.disabledReason ? `— ${d.disabledReason}` : ''}
                 </option>
               ))}
             </select>
+            <div className="form-hint" style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.25rem' }}>
+              <span>Trip Window: <strong>{formatTime12(dep)} {arr ? `➔ ${formatTime12(arr)}` : ''}</strong></span>
+              {!dataLoading && (
+                <span style={{ color: availableDriversCount > 0 ? 'var(--accent-teal)' : 'var(--accent-red)', fontWeight: 600 }}>
+                  {availableDriversCount > 0
+                    ? `✓ ${availableDriversCount} driver(s) available`
+                    : `✕ No drivers free for this schedule`}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Vehicle Selection separated by Seat Capacity */}
+          {/* Vehicle Selection separated by Seat Capacity with Schedule Conflict Detection */}
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label" htmlFor="assign-vehicle-select">
               <Car size={13} style={{ display: 'inline', marginRight: 4 }} />
@@ -220,7 +327,7 @@ export default function AssignModal({ request, onClose, onAssigned }) {
               ))}
             </select>
 
-            {/* Capacity hint */}
+            {/* Capacity & Schedule hint */}
             <div className="form-hint" style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.25rem' }}>
               <span>Required: <strong>{requiredPax} pax</strong></span>
               {dataLoading ? (
@@ -228,14 +335,14 @@ export default function AssignModal({ request, onClose, onAssigned }) {
               ) : (
                 <span style={{ color: eligibleCount > 0 ? 'var(--accent-teal)' : 'var(--accent-red)', fontWeight: 600 }}>
                   {eligibleCount > 0
-                    ? `✓ ${eligibleCount} vehicle(s) can accommodate this trip`
-                    : `✕ No available vehicles with ≥ ${requiredPax} seats`}
+                    ? `✓ ${eligibleCount} vehicle(s) fit and available`
+                    : `✕ No available vehicles for this trip`}
                 </span>
               )}
             </div>
           </div>
 
-          {/* Warning if no vehicles meet capacity (only after data finishes loading) */}
+          {/* Warning if no vehicles meet capacity or schedule */}
           {!dataLoading && eligibleCount === 0 && (
             <div style={{
               background: 'rgba(239, 68, 68, 0.1)',
@@ -251,7 +358,7 @@ export default function AssignModal({ request, onClose, onAssigned }) {
             }}>
               <AlertTriangle size={18} style={{ flexShrink: 0 }} />
               <div>
-                <strong>Insufficient Capacity:</strong> All available vehicles have fewer seats than the <strong>{requiredPax} passengers</strong> requested.
+                <strong>No Vehicles Available:</strong> All vehicles are either already assigned to other trips during this schedule, under maintenance, or have insufficient seats for <strong>{requiredPax} passengers</strong>.
               </div>
             </div>
           )}
