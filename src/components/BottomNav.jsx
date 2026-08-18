@@ -1,23 +1,26 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LayoutDashboard, Car, FileText, Users, Truck, Plus } from 'lucide-react';
+import { LayoutDashboard, Car, FileText, Users, Truck, Plus, Calendar } from 'lucide-react';
 
 const ROLE_TABS = {
   requestor: [
     { to: '/dashboard',    icon: LayoutDashboard, label: 'Home' },
     { to: '/my-requests',  icon: FileText,        label: 'Requests' },
+    { to: '/calendar',     icon: Calendar,        label: 'Calendar' },
     { to: '/new-request',  icon: Plus,            label: 'New' },
     { to: '/fleet-status', icon: Car,             label: 'Fleet' },
   ],
   admin: [
     { to: '/dashboard',    icon: LayoutDashboard, label: 'Home' },
     { to: '/requests',     icon: FileText,        label: 'Requests' },
+    { to: '/calendar',     icon: Calendar,        label: 'Calendar' },
     { to: '/vehicles',     icon: Car,             label: 'Fleet' },
     { to: '/users',        icon: Users,           label: 'Users' },
   ],
   driver: [
     { to: '/dashboard',    icon: LayoutDashboard, label: 'Home' },
     { to: '/my-trips',     icon: Truck,           label: 'My Trips' },
+    { to: '/calendar',     icon: Calendar,        label: 'Calendar' },
   ],
 };
 

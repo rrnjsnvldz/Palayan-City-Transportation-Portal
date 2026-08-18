@@ -422,6 +422,20 @@ p  { line-height: 1.6; color: var(--text-secondary); }
   }
 }
 
+/* ── Calendar Layout ────────────────────────────────────────── */
+.calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.2fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .calendar-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Vehicle Card */
 .vehicle-card {
   background: var(--surface-1); border: 1px solid var(--border);

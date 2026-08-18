@@ -16,6 +16,7 @@ import VehicleManagement from './pages/vehicles/VehicleManagement';
 import FleetStatus from './pages/vehicles/FleetStatus';
 import LiveMap from './pages/tracking/LiveMap';
 import UserManagement from './pages/admin/UserManagement';
+import TransportCalendar from './pages/calendar/TransportCalendar';
 
 function ProtectedRoute({ children, roles }) {
   const { user, loading } = useAuth();
@@ -66,6 +67,9 @@ export default function App() {
           } />
           <Route path="/live-map" element={
             <ProtectedRoute><AppShell title="Live Map"><LiveMap /></AppShell></ProtectedRoute>
+          } />
+          <Route path="/calendar" element={
+            <ProtectedRoute><AppShell title="Transport Calendar"><TransportCalendar /></AppShell></ProtectedRoute>
           } />
           <Route path="/new-request" element={
             <ProtectedRoute roles={['requestor']}><AppShell title="New Request"><NewRequest /></AppShell></ProtectedRoute>
