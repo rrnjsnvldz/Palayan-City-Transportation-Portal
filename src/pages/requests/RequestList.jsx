@@ -1,107 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { requestApi, assignmentApi, authApi, vehicleApi } from '../../services/api';
+import { requestApi } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
 import StatusBadge from '../../components/StatusBadge';
+import AssignModal from '../../components/AssignModal';
 import { formatTime12, calculateDuration } from '../../utils/timeFormat';
-import { Search, CheckCircle, XCircle, UserCheck, ChevronDown, ChevronUp, X, Plus, Clock, ArrowRight, Edit2 } from 'lucide-react';
+import { Search, CheckCircle, XCircle, ChevronDown, ChevronUp, X, Plus, Clock, Edit2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-// ── Assign / Edit Assignment Modal ────────────────────────────
-function AssignModal({ request, onClose, onAssigned }) {
-  const [drivers,   setDrivers]   = useState([]);
-  const [vehicles,  setVehicles]  = useState([]);
-  const [driverId,  setDriverId]  = useState(request.assignment?.driver_id?.toString() || '');
-  const [vehicleId, setVehicleId] = useState(request.assignment?.vehicle_id?.toString() || '');
-  const [loading,   setLoading]   = useState(false);
-  const { toast } = useToast();
-
-  const isEditing = request.status === 'approved' && !!request.assignment;
-  const dep = request.departure_time || request.requested_time;
-  const arr = request.arrival_time;
-  const duration = request.trip_duration || (dep && arr ? calculateDuration(dep, arr).formatted : '');
-
-  useEffect(() => {
-    authApi.getUsers().then(r => setDrivers(r.data.filter(u => u.role === 'driver')));
-    vehicleApi.list().then(r => {
-      const currentVehId = request.assignment?.vehicle_id;
-      setVehicles(r.data.filter(v => v.status === 'available' || v.id === currentVehId));
-    });
-  }, [request]);
-
-  const handleAssign = async () => {
-    if (!driverId || !vehicleId) { toast({ type: 'warning', title: 'Select both driver and vehicle' }); return; }
-    setLoading(true);
-    try {
-      await assignmentApi.create({ request_id: request.id, driver_id: parseInt(driverId, 10), vehicle_id: parseInt(vehicleId, 10) });
-      toast({
-        type: 'success',
-        title: isEditing ? 'Assignment Updated!' : 'Request Approved & Assigned!',
-        message: isEditing ? 'Assigned driver and vehicle have been updated.' : 'Driver and vehicle successfully assigned.'
-      });
-      onAssigned();
-    } catch (err) {
-      toast({ type: 'error', title: 'Error', message: err.response?.data?.error });
-    } finally { setLoading(false); }
-  };
-
-  return (
-    <div className="modal-overlay">
-      <div className="modal">
-        <div className="modal-header">
-          <h3>{isEditing ? 'Edit Assigned Driver & Vehicle' : 'Approve & Assign Vehicle'}</h3>
-          <button className="modal-close" onClick={onClose}><X size={14} /></button>
-        </div>
-        <div className="modal-body">
-          <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', padding: '0.875rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '0.35rem' }}>{request.destination}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
-              <div>📅 <strong>{request.requested_date}</strong> · 👥 {request.pax_count} pax ({request.department})</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
-                <span style={{ color: 'var(--accent-teal)', fontWeight: 600 }}>Depart City Hall: {formatTime12(dep)}</span>
-                {arr && (
-                  <>
-                    <ArrowRight size={12} color="var(--text-muted)" />
-                    <span style={{ color: 'var(--gold-300)', fontWeight: 600 }}>Return: {formatTime12(arr)}</span>
-                  </>
-                )}
-                {duration && (
-                  <span style={{ background: 'rgba(201,168,76,0.15)', color: 'var(--gold-300)', padding: '0.1rem 0.45rem', borderRadius: 'var(--radius-sm)', fontWeight: 700, fontSize: '0.72rem' }}>
-                    ⏱️ {duration}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Select Driver</label>
-            <select className="form-control" value={driverId} onChange={e => setDriverId(e.target.value)}>
-              <option value="">-- Select driver --</option>
-              {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-          </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Select Vehicle</label>
-            <select className="form-control" value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
-              <option value="">-- Select vehicle --</option>
-              {vehicles.map(v => (
-                <option key={v.id} value={v.id}>
-                  {v.name} ({v.plate_no}) · {v.capacity} seats · {v.fuel_level?.toFixed(0)}% fuel {v.id === request.assignment?.vehicle_id ? '(Current)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className={`btn btn-primary${loading ? ' btn-loading' : ''}`} onClick={handleAssign} disabled={loading} id="confirm-assign">
-            {!loading && <><UserCheck size={16} /> {isEditing ? 'Save Changes' : 'Approve & Assign'}</>}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Deny Modal ────────────────────────────────────────────────
 function DenyModal({ request, onClose, onDenied }) {
