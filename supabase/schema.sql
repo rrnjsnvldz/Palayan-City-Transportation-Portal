@@ -45,6 +45,9 @@ create table if not exists requests (
   pax_count      integer not null default 1,
   requested_date date not null,
   requested_time time not null,
+  departure_time time,
+  arrival_time   time,
+  trip_duration  text,
   notes          text,
   status         text not null default 'pending'
                  check (status in ('pending','approved','denied','in_progress','completed','cancelled')),

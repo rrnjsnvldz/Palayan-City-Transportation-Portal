@@ -3,13 +3,22 @@
  * This bypasses Row Level Security — never expose this key to the frontend.
  */
 import { createClient } from '@supabase/supabase-js';
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+// Load from cwd and from server directory
+dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const SUPABASE_URL         = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.warn('[DB] ⚠️  Supabase env vars not set — running in LOCAL MODE with sql.js fallback');
+  console.warn('[DB] ⚠️  Supabase env vars not set — check server/.env');
+} else {
+  console.log('[DB] ✅ Supabase connected:', SUPABASE_URL);
 }
 
 // Create Supabase admin client (service role)

@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { requestApi, vehicleApi, assignmentApi, authApi } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
 import StatusBadge from '../../components/StatusBadge';
+import { formatTime12, calculateDuration } from '../../utils/timeFormat';
 import {
   FileText, Car, Activity, CheckCircle, XCircle, Clock,
-  Wrench, MapPin, Users, ChevronRight, UserCheck, AlertCircle
+  Wrench, MapPin, Users, ChevronRight, UserCheck, AlertCircle, ArrowRight
 } from 'lucide-react';
 
 function AssignModal({ request, onClose, onAssigned }) {
@@ -15,6 +16,10 @@ function AssignModal({ request, onClose, onAssigned }) {
   const [vehicleId, setVehicleId] = useState('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  const dep = request.departure_time || request.requested_time;
+  const arr = request.arrival_time;
+  const duration = request.trip_duration || (dep && arr ? calculateDuration(dep, arr).formatted : '');
 
   useEffect(() => {
     authApi.getUsers().then(r => setDrivers(r.data.filter(u => u.role === 'driver')));
@@ -44,8 +49,24 @@ function AssignModal({ request, onClose, onAssigned }) {
         </div>
         <div className="modal-body">
           <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', padding: '0.875rem', marginBottom: '1.25rem' }}>
-            <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>{request.destination}</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{request.requested_date} at {request.requested_time} · {request.pax_count} pax</div>
+            <div style={{ fontWeight: 700, marginBottom: '0.25rem', fontSize: '0.95rem' }}>{request.destination}</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <div>📅 <strong>{request.requested_date}</strong> · 👥 {request.pax_count} pax ({request.department})</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.15rem' }}>
+                <span style={{ color: 'var(--accent-teal)', fontWeight: 600 }}>Depart City Hall: {formatTime12(dep)}</span>
+                {arr && (
+                  <>
+                    <ArrowRight size={12} color="var(--text-muted)" />
+                    <span style={{ color: 'var(--gold-300)', fontWeight: 600 }}>Return: {formatTime12(arr)}</span>
+                  </>
+                )}
+                {duration && (
+                  <span style={{ background: 'rgba(201,168,76,0.15)', color: 'var(--gold-300)', padding: '0.1rem 0.45rem', borderRadius: 'var(--radius-sm)', fontWeight: 700, fontSize: '0.72rem' }}>
+                    ⏱️ {duration}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">Select Driver</label>
@@ -147,7 +168,6 @@ export default function AdminDashboard() {
 
   const pending    = requests.filter(r => r.status === 'pending');
   const inProgress = requests.filter(r => r.status === 'in_progress');
-  const recent     = requests.slice(0, 8);
 
   const STAT_CARDS = [
     { label: 'Pending Review',  value: stats?.pending    ?? 0, icon: Clock,      color: '#f59e0b', rgb: '245,158,11',  alert: stats?.pending > 0 },
@@ -198,37 +218,46 @@ export default function AdminDashboard() {
             <div className="table-container">
               <table>
                 <thead>
-                  <tr><th>Requestor</th><th>Destination</th><th>Date</th><th>Actions</th></tr>
+                  <tr><th>Requestor</th><th>Destination</th><th>Departure / Return</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
-                  {pending.slice(0, 6).map(r => (
-                    <tr key={r.id}>
-                      <td>
-                        <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-primary)' }}>{r.requestor?.name}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{r.requestor?.department}</div>
-                      </td>
-                      <td style={{ fontSize: '0.8rem' }}>
-                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{r.destination}</div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{r.pax_count} pax</div>
-                      </td>
-                      <td style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                        {r.requested_date}<br /><span style={{ color: 'var(--text-muted)' }}>{r.requested_time}</span>
-                      </td>
-                      <td>
-                        <div className="flex gap-1" style={{ flexWrap: 'wrap' }}>
-                          <button className="btn btn-sm btn-success" onClick={() => handleApprove(r.id)}>
-                            <CheckCircle size={12} /> Approve
-                          </button>
-                          <button className="btn btn-sm btn-secondary" onClick={() => setAssignTarget(r)}>
-                            <UserCheck size={12} /> Assign
-                          </button>
-                          <button className="btn btn-sm btn-danger" onClick={() => setDenyTarget(r)}>
-                            <XCircle size={12} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {pending.slice(0, 6).map(r => {
+                    const dep = r.departure_time || r.requested_time;
+                    const arr = r.arrival_time;
+                    const duration = r.trip_duration || (dep && arr ? calculateDuration(dep, arr).formatted : '');
+
+                    return (
+                      <tr key={r.id}>
+                        <td>
+                          <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-primary)' }}>{r.requestor?.name}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{r.requestor?.department}</div>
+                        </td>
+                        <td style={{ fontSize: '0.8rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{r.destination}</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{r.pax_count} pax</div>
+                        </td>
+                        <td style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontWeight: 600 }}>{r.requested_date}</div>
+                          <div style={{ color: 'var(--accent-teal)', fontSize: '0.72rem' }}>Depart: {formatTime12(dep)}</div>
+                          {arr && <div style={{ color: 'var(--gold-300)', fontSize: '0.72rem' }}>Return: {formatTime12(arr)}</div>}
+                          {duration && <div style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>⏱️ {duration}</div>}
+                        </td>
+                        <td>
+                          <div className="flex gap-1" style={{ flexWrap: 'wrap' }}>
+                            <button className="btn btn-sm btn-success" onClick={() => handleApprove(r.id)} title="Approve">
+                              <CheckCircle size={12} />
+                            </button>
+                            <button className="btn btn-sm btn-secondary" onClick={() => setAssignTarget(r)} title="Assign Driver & Vehicle">
+                              <UserCheck size={12} /> Assign
+                            </button>
+                            <button className="btn btn-sm btn-danger" onClick={() => setDenyTarget(r)} title="Deny">
+                              <XCircle size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -247,23 +276,35 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {inProgress.map(r => (
-                <div key={r.id} className="card" style={{ padding: '1rem' }}>
-                  <div className="flex items-center justify-between" style={{ marginBottom: '0.5rem' }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{r.destination}</div>
-                    <StatusBadge status={r.status} />
+              {inProgress.map(r => {
+                const dep = r.departure_time || r.requested_time;
+                const arr = r.arrival_time;
+                const duration = r.trip_duration || (dep && arr ? calculateDuration(dep, arr).formatted : '');
+
+                return (
+                  <div key={r.id} className="card" style={{ padding: '1rem' }}>
+                    <div className="flex items-center justify-between" style={{ marginBottom: '0.5rem' }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{r.destination}</div>
+                      <StatusBadge status={r.status} />
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      Driver: <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{r.assignment?.driver_name || 'Unassigned'}</span>
+                      {r.assignment?.vehicle_name && (
+                        <span> · {r.assignment.vehicle_name} ({r.assignment.plate_no})</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <span>👤 {r.requestor?.name}</span>
+                      <span>·</span>
+                      <span>📅 {r.requested_date}</span>
+                      <span>·</span>
+                      <span style={{ color: 'var(--accent-teal)' }}>Depart: {formatTime12(dep)}</span>
+                      {arr && <span style={{ color: 'var(--gold-300)' }}>Return: {formatTime12(arr)}</span>}
+                      {duration && <span style={{ color: 'var(--text-muted)' }}>({duration})</span>}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    Driver: <span style={{ color: 'var(--text-secondary)' }}>{r.assignment?.driver_name || 'Unassigned'}</span>
-                    {r.assignment?.vehicle_name && (
-                      <span> · {r.assignment.vehicle_name} ({r.assignment.plate_no})</span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                    {r.requestor?.name} · {r.requested_date} {r.requested_time}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

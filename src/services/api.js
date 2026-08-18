@@ -5,7 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 const api = axios.create({ baseURL: API_URL });
 
 api.interceptors.request.use(cfg => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('pt_token');
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
   return cfg;
 });
@@ -14,8 +14,8 @@ api.interceptors.response.use(
   r => r,
   err => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      localStorage.removeItem('pt_token');
+      localStorage.removeItem('pt_user');
       if (!window.location.pathname.includes('/login')) window.location.href = '/login';
     }
     return Promise.reject(err);
@@ -23,7 +23,7 @@ api.interceptors.response.use(
 );
 
 export const authApi = {
-  login:      (data) => api.post('/api/auth/login', data),
+  login:      (email, password) => api.post('/api/auth/login', { email, password }),
   me:         ()     => api.get('/api/auth/me'),
   getUsers:   ()     => api.get('/api/auth/users'),
   createUser: (data) => api.post('/api/auth/users', data),

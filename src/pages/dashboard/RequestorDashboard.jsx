@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { requestApi, vehicleApi } from '../../services/api';
 import StatusBadge from '../../components/StatusBadge';
 import VehicleCard from '../../components/VehicleCard';
+import { formatTime12, calculateDuration } from '../../utils/timeFormat';
 import { Car, FileText, Clock, CheckCircle, Plus, TrendingUp } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -80,24 +81,32 @@ export default function RequestorDashboard() {
                 <thead>
                   <tr>
                     <th>Destination</th>
-                    <th>Date</th>
+                    <th>Departure / Return</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {requests.map(r => (
-                    <tr key={r.id}>
-                      <td>
-                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.8rem' }}>{r.destination}</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{r.purpose}</div>
-                      </td>
-                      <td style={{ whiteSpace: 'nowrap', fontSize: '0.78rem' }}>
-                        {r.requested_date}<br />
-                        <span style={{ color: 'var(--text-muted)' }}>{r.requested_time}</span>
-                      </td>
-                      <td><StatusBadge status={r.status} /></td>
-                    </tr>
-                  ))}
+                  {requests.map(r => {
+                    const dep = r.departure_time || r.requested_time;
+                    const arr = r.arrival_time;
+                    const duration = r.trip_duration || (dep && arr ? calculateDuration(dep, arr).formatted : '');
+
+                    return (
+                      <tr key={r.id}>
+                        <td>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.8rem' }}>{r.destination}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{r.purpose}</div>
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap', fontSize: '0.78rem' }}>
+                          <div style={{ fontWeight: 600 }}>{r.requested_date}</div>
+                          <div style={{ color: 'var(--accent-teal)', fontSize: '0.72rem' }}>Depart: {formatTime12(dep)}</div>
+                          {arr && <div style={{ color: 'var(--gold-300)', fontSize: '0.72rem' }}>Return: {formatTime12(arr)}</div>}
+                          {duration && <div style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>⏱️ {duration}</div>}
+                        </td>
+                        <td><StatusBadge status={r.status} /></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}

@@ -3,7 +3,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { requestApi, assignmentApi, authApi, vehicleApi } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
 import StatusBadge from '../../components/StatusBadge';
-import { Search, CheckCircle, XCircle, UserCheck, ChevronDown, ChevronUp, X, Plus } from 'lucide-react';
+import { formatTime12, calculateDuration } from '../../utils/timeFormat';
+import { Search, CheckCircle, XCircle, UserCheck, ChevronDown, ChevronUp, X, Plus, Clock, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // ── Assign Modal ──────────────────────────────────────────────
@@ -14,6 +15,10 @@ function AssignModal({ request, onClose, onAssigned }) {
   const [vehicleId, setVehicleId] = useState('');
   const [loading,   setLoading]   = useState(false);
   const { toast } = useToast();
+
+  const dep = request.departure_time || request.requested_time;
+  const arr = request.arrival_time;
+  const duration = request.trip_duration || (dep && arr ? calculateDuration(dep, arr).formatted : '');
 
   useEffect(() => {
     authApi.getUsers().then(r => setDrivers(r.data.filter(u => u.role === 'driver')));
@@ -40,9 +45,25 @@ function AssignModal({ request, onClose, onAssigned }) {
           <button className="modal-close" onClick={onClose}><X size={14} /></button>
         </div>
         <div className="modal-body">
-          <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.85rem' }}>
-            <strong>{request.destination}</strong><br />
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{request.requested_date} {request.requested_time} · {request.pax_count} pax</span>
+          <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', padding: '0.875rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
+            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '0.35rem' }}>{request.destination}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
+              <div>📅 <strong>{request.requested_date}</strong> · 👥 {request.pax_count} pax ({request.department})</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
+                <span style={{ color: 'var(--accent-teal)', fontWeight: 600 }}>Depart City Hall: {formatTime12(dep)}</span>
+                {arr && (
+                  <>
+                    <ArrowRight size={12} color="var(--text-muted)" />
+                    <span style={{ color: 'var(--gold-300)', fontWeight: 600 }}>Return: {formatTime12(arr)}</span>
+                  </>
+                )}
+                {duration && (
+                  <span style={{ background: 'rgba(201,168,76,0.15)', color: 'var(--gold-300)', padding: '0.1rem 0.45rem', borderRadius: 'var(--radius-sm)', fontWeight: 700, fontSize: '0.72rem' }}>
+                    ⏱️ {duration}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">Driver</label>
@@ -108,6 +129,10 @@ function DenyModal({ request, onClose, onDenied }) {
 // ── Request Row (desktop table) ───────────────────────────────
 function RequestRow({ r, isAdmin, onApprove, onDeny, onAssign }) {
   const [expanded, setExpanded] = useState(false);
+  const dep = r.departure_time || r.requested_time;
+  const arr = r.arrival_time;
+  const duration = r.trip_duration || (dep && arr ? calculateDuration(dep, arr).formatted : '');
+
   return (
     <>
       <tr style={{ cursor: 'pointer' }} onClick={() => setExpanded(!expanded)}>
@@ -122,7 +147,18 @@ function RequestRow({ r, isAdmin, onApprove, onDeny, onAssign }) {
           </td>
         )}
         <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
-          {r.requested_date}<br /><span style={{ color: 'var(--text-muted)' }}>{r.requested_time}</span>
+          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{r.requested_date}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.15rem' }}>
+            <span style={{ color: 'var(--accent-teal)' }} title="Departure from City Hall">🛫 {formatTime12(dep)}</span>
+            {arr && (
+              <span style={{ color: 'var(--gold-300)' }} title="Estimated Return to City Hall">🛬 {formatTime12(arr)}</span>
+            )}
+          </div>
+          {duration && (
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+              ⏱️ {duration}
+            </div>
+          )}
         </td>
         <td><StatusBadge status={r.status} /></td>
         <td onClick={e => e.stopPropagation()}>
@@ -146,15 +182,27 @@ function RequestRow({ r, isAdmin, onApprove, onDeny, onAssign }) {
       {expanded && (
         <tr>
           <td colSpan={isAdmin ? 5 : 4} style={{ padding: 0, background: 'var(--navy-900)' }}>
-            <div style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: '0.625rem', fontSize: '0.78rem' }}>
-              <div><div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>Passengers</div><strong>{r.pax_count}</strong></div>
+            <div style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: '0.75rem', fontSize: '0.78rem' }}>
+              <div>
+                <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>Departure (City Hall)</div>
+                <strong style={{ color: 'var(--accent-teal)' }}>{formatTime12(dep)}</strong>
+              </div>
+              <div>
+                <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>Return (City Hall)</div>
+                <strong style={{ color: 'var(--gold-300)' }}>{arr ? formatTime12(arr) : '—'}</strong>
+              </div>
+              <div>
+                <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>Trip Duration</div>
+                <strong>{duration || '—'}</strong>
+              </div>
+              <div><div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>Passengers</div><strong>{r.pax_count} pax</strong></div>
               <div><div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>Department</div><strong>{r.department}</strong></div>
               {r.assignment && <>
                 <div><div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>Driver</div><strong>{r.assignment.driver_name}</strong></div>
                 <div><div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>Vehicle</div><strong>{r.assignment.vehicle_name} ({r.assignment.plate_no})</strong></div>
               </>}
-              {r.denial_reason && <div style={{ gridColumn: '1/-1' }}><span style={{ color: 'var(--accent-red)' }}>Denied:</span> {r.denial_reason}</div>}
-              {r.notes && <div style={{ gridColumn: '1/-1' }}><span style={{ color: 'var(--text-muted)' }}>Notes:</span> {r.notes}</div>}
+              {r.denial_reason && <div style={{ gridColumn: '1/-1' }}><span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>Denied Reason:</span> {r.denial_reason}</div>}
+              {r.notes && <div style={{ gridColumn: '1/-1' }}><span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Notes:</span> {r.notes}</div>}
             </div>
           </td>
         </tr>
@@ -166,6 +214,10 @@ function RequestRow({ r, isAdmin, onApprove, onDeny, onAssign }) {
 // ── Mobile Card ───────────────────────────────────────────────
 function RequestMobileCard({ r, isAdmin, onApprove, onDeny, onAssign }) {
   const [expanded, setExpanded] = useState(false);
+  const dep = r.departure_time || r.requested_time;
+  const arr = r.arrival_time;
+  const duration = r.trip_duration || (dep && arr ? calculateDuration(dep, arr).formatted : '');
+
   return (
     <div className="mobile-card">
       <div className="mobile-card-header">
@@ -175,10 +227,23 @@ function RequestMobileCard({ r, isAdmin, onApprove, onDeny, onAssign }) {
         </div>
         <StatusBadge status={r.status} />
       </div>
-      <div className="mobile-card-meta">
-        {isAdmin && <span>👤 {r.requestor?.name}</span>}
-        <span>📅 {r.requested_date} {r.requested_time}</span>
-        <span>👥 {r.pax_count} pax</span>
+      <div className="mobile-card-meta" style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {isAdmin && <span>👤 {r.requestor?.name}</span>}
+          <span>📅 {r.requested_date}</span>
+          <span>👥 {r.pax_count} pax</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.74rem', background: 'var(--surface-2)', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)', width: '100%' }}>
+          <Clock size={12} color="var(--gold-400)" />
+          <span style={{ color: 'var(--accent-teal)' }}>Depart: {formatTime12(dep)}</span>
+          {arr && (
+            <>
+              <span>→</span>
+              <span style={{ color: 'var(--gold-300)' }}>Return: {formatTime12(arr)}</span>
+            </>
+          )}
+          {duration && <span style={{ color: 'var(--text-muted)', marginLeft: 'auto' }}>⏱️ {duration}</span>}
+        </div>
       </div>
       {expanded && (
         <div style={{ marginTop: '0.625rem', fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -296,7 +361,7 @@ export default function RequestList() {
                 <tr>
                   <th>Destination</th>
                   {isAdmin && <th>Requestor</th>}
-                  <th>Date / Time</th>
+                  <th>Departure / Return</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>

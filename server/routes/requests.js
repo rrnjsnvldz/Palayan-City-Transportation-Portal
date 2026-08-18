@@ -4,6 +4,37 @@ import { authenticate, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
+function calculateTripDuration(depTime, arrTime) {
+  if (!depTime || !arrTime) return '';
+  const d = depTime.toString().split(':');
+  const a = arrTime.toString().split(':');
+  if (d.length < 2 || a.length < 2) return '';
+  const depM = parseInt(d[0], 10) * 60 + parseInt(d[1], 10);
+  const arrM = parseInt(a[0], 10) * 60 + parseInt(a[1], 10);
+  if (isNaN(depM) || isNaN(arrM)) return '';
+  const diff = arrM - depM;
+  if (diff <= 0) return '';
+  const h = Math.floor(diff / 60);
+  const m = diff % 60;
+  if (h > 0 && m > 0) return `${h} hr${h > 1 ? 's' : ''} ${m} min${m > 1 ? 's' : ''}`;
+  if (h > 0) return `${h} hr${h > 1 ? 's' : ''}`;
+  if (m > 0) return `${m} min${m > 1 ? 's' : ''}`;
+  return '0 mins';
+}
+
+function parseScheduleFromNotes(notes) {
+  if (!notes) return { embedded_departure: null, embedded_arrival: null, embedded_duration: null };
+  const match = notes.match(/\[Schedule:\s*Depart\s*([0-9:]+(?:\s*[AP]M)?)\s*\|\s*Return\s*([0-9:]+(?:\s*[AP]M)?)\s*\|\s*Duration\s*([^\]]+)\]/i);
+  if (match) {
+    return {
+      embedded_departure: match[1]?.trim() || null,
+      embedded_arrival: match[2]?.trim() || null,
+      embedded_duration: match[3]?.trim() || null,
+    };
+  }
+  return { embedded_departure: null, embedded_arrival: null, embedded_duration: null };
+}
+
 async function enrichRequest(r) {
   const { data: requestor } = await supabase
     .from('users').select('id, name, email, department').eq('id', r.requestor_id).single();
@@ -15,8 +46,16 @@ async function enrichRequest(r) {
     .limit(1)
     .maybeSingle();
 
+  const notesMeta = parseScheduleFromNotes(r.notes);
+  const dep = r.departure_time || r.requested_time || notesMeta.embedded_departure || '08:00';
+  const arr = r.arrival_time || notesMeta.embedded_arrival || null;
+  const duration = r.trip_duration || (dep && arr ? calculateTripDuration(dep, arr) : notesMeta.embedded_duration) || '';
+
   return {
     ...r,
+    departure_time: dep,
+    arrival_time: arr,
+    trip_duration: duration,
     requestor: requestor || null,
     assignment: assignment
       ? {
@@ -117,20 +156,102 @@ router.get('/:id', authenticate, async (req, res) => {
 
 // POST /api/requests
 router.post('/', authenticate, requireRole('requestor'), async (req, res) => {
-  const { destination, purpose, department, pax_count, requested_date, requested_time, notes } = req.body;
-  if (!destination || !purpose || !department || !requested_date || !requested_time)
-    return res.status(400).json({ error: 'Missing required fields' });
+  const {
+    destination,
+    purpose,
+    department,
+    pax_count,
+    requested_date,
+    departure_time,
+    arrival_time,
+    trip_duration,
+    requested_time,
+    notes
+  } = req.body;
 
-  const { data, error } = await supabase.from('requests')
-    .insert({ requestor_id: req.user.id, destination, purpose, department, pax_count: pax_count || 1, requested_date, requested_time, notes: notes || null })
-    .select().single();
-  if (error) return res.status(500).json({ error: error.message });
+  const depTime = departure_time || requested_time || '08:00';
+  const arrTime = arrival_time || null;
+  const calcDuration = trip_duration || (depTime && arrTime ? calculateTripDuration(depTime, arrTime) : '');
+
+  if (!destination || !purpose || !department || !requested_date || (!departure_time && !requested_time)) {
+    return res.status(400).json({ error: 'Missing required fields (destination, purpose, department, date, departure time)' });
+  }
+
+  // Format notes with schedule metadata tag to guarantee persistence across all environments
+  let cleanUserNotes = notes ? notes.trim() : '';
+  let metadataTag = arrTime ? `[Schedule: Depart ${depTime} | Return ${arrTime} | Duration ${calcDuration}]` : '';
+  let finalNotes = cleanUserNotes
+    ? (metadataTag ? `${cleanUserNotes}\n\n${metadataTag}` : cleanUserNotes)
+    : (metadataTag || null);
+
+  let insertedData = null;
+
+  try {
+    const { data, error } = await supabase.from('requests')
+      .insert({
+        requestor_id: req.user.id,
+        destination,
+        purpose,
+        department,
+        pax_count: pax_count || 1,
+        requested_date,
+        requested_time: depTime,
+        departure_time: depTime,
+        arrival_time: arrTime,
+        trip_duration: calcDuration,
+        notes: cleanUserNotes || null,
+      })
+      .select().single();
+
+    if (!error && data) {
+      insertedData = data;
+    } else {
+      // Fallback in case columns do not exist in DB schema yet
+      const { data: fbData, error: fbError } = await supabase.from('requests')
+        .insert({
+          requestor_id: req.user.id,
+          destination,
+          purpose,
+          department,
+          pax_count: pax_count || 1,
+          requested_date,
+          requested_time: depTime,
+          notes: finalNotes,
+        })
+        .select().single();
+
+      if (fbError) return res.status(500).json({ error: fbError.message });
+      insertedData = fbData;
+    }
+  } catch (err) {
+    const { data: fbData, error: fbError } = await supabase.from('requests')
+      .insert({
+        requestor_id: req.user.id,
+        destination,
+        purpose,
+        department,
+        pax_count: pax_count || 1,
+        requested_date,
+        requested_time: depTime,
+        notes: finalNotes,
+      })
+      .select().single();
+
+    if (fbError) return res.status(500).json({ error: fbError.message });
+    insertedData = fbData;
+  }
 
   const { data: admins } = await supabase.from('users').select('id').eq('role', 'admin');
   if (admins) {
-    await Promise.all(admins.map(a => notifyUser(a.id, 'New Transport Request', `${req.user.name} submitted a request to ${destination}`, 'info')));
+    const timeDetail = arrTime ? `${depTime} – ${arrTime} (${calcDuration})` : depTime;
+    await Promise.all(admins.map(a => notifyUser(
+      a.id,
+      'New Transport Request',
+      `${req.user.name} submitted a request to ${destination} on ${requested_date} [Depart: ${depTime}, Return: ${arrTime || 'N/A'}]`,
+      'info'
+    )));
   }
-  res.status(201).json(await enrichRequest(data));
+  res.status(201).json(await enrichRequest(insertedData));
 });
 
 // PATCH /api/requests/:id/approve

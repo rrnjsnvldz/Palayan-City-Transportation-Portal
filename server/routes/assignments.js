@@ -38,11 +38,42 @@ router.post('/', authenticate, requireRole('admin'), async (req, res) => {
   res.status(201).json(data);
 });
 
+function calculateTripDuration(depTime, arrTime) {
+  if (!depTime || !arrTime) return '';
+  const d = depTime.toString().split(':');
+  const a = arrTime.toString().split(':');
+  if (d.length < 2 || a.length < 2) return '';
+  const depM = parseInt(d[0], 10) * 60 + parseInt(d[1], 10);
+  const arrM = parseInt(a[0], 10) * 60 + parseInt(a[1], 10);
+  if (isNaN(depM) || isNaN(arrM)) return '';
+  const diff = arrM - depM;
+  if (diff <= 0) return '';
+  const h = Math.floor(diff / 60);
+  const m = diff % 60;
+  if (h > 0 && m > 0) return `${h} hr${h > 1 ? 's' : ''} ${m} min${m > 1 ? 's' : ''}`;
+  if (h > 0) return `${h} hr${h > 1 ? 's' : ''}`;
+  if (m > 0) return `${m} min${m > 1 ? 's' : ''}`;
+  return '0 mins';
+}
+
+function parseScheduleFromNotes(notes) {
+  if (!notes) return { embedded_departure: null, embedded_arrival: null, embedded_duration: null };
+  const match = notes.match(/\[Schedule:\s*Depart\s*([0-9:]+(?:\s*[AP]M)?)\s*\|\s*Return\s*([0-9:]+(?:\s*[AP]M)?)\s*\|\s*Duration\s*([^\]]+)\]/i);
+  if (match) {
+    return {
+      embedded_departure: match[1]?.trim() || null,
+      embedded_arrival: match[2]?.trim() || null,
+      embedded_duration: match[3]?.trim() || null,
+    };
+  }
+  return { embedded_departure: null, embedded_arrival: null, embedded_duration: null };
+}
+
 // GET /api/assignments
 router.get('/', authenticate, async (req, res) => {
   let query = supabase.from('assignments').select(`
     *,
-    request:requests(destination, purpose, requested_date, requested_time, status, pax_count, notes, requestor_id),
+    request:requests(*),
     driver:users!assignments_driver_id_fkey(name, email),
     vehicle:vehicles(name, plate_no, type, capacity, fuel_level)
   `).order('assigned_at', { ascending: false });
@@ -54,23 +85,34 @@ router.get('/', authenticate, async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
 
   // Flatten for frontend consumption
-  const flat = data.map(a => ({
-    ...a,
-    destination:    a.request?.destination,
-    purpose:        a.request?.purpose,
-    requested_date: a.request?.requested_date,
-    requested_time: a.request?.requested_time,
-    request_status: a.request?.status,
-    pax_count:      a.request?.pax_count,
-    notes:          a.request?.notes,
-    requestor_id:   a.request?.requestor_id,
-    driver_name:    a.driver?.name,
-    vehicle_name:   a.vehicle?.name,
-    plate_no:       a.vehicle?.plate_no,
-    vehicle_type:   a.vehicle?.type,
-    capacity:       a.vehicle?.capacity,
-    fuel_level:     a.vehicle?.fuel_level,
-  }));
+  const flat = data.map(a => {
+    const r = a.request || {};
+    const notesMeta = parseScheduleFromNotes(r.notes);
+    const dep = r.departure_time || r.requested_time || notesMeta.embedded_departure || '08:00';
+    const arr = r.arrival_time || notesMeta.embedded_arrival || null;
+    const duration = r.trip_duration || (dep && arr ? calculateTripDuration(dep, arr) : notesMeta.embedded_duration) || '';
+
+    return {
+      ...a,
+      destination:    r.destination,
+      purpose:        r.purpose,
+      requested_date: r.requested_date,
+      requested_time: dep,
+      departure_time: dep,
+      arrival_time:   arr,
+      trip_duration:  duration,
+      request_status: r.status,
+      pax_count:      r.pax_count,
+      notes:          r.notes,
+      requestor_id:   r.requestor_id,
+      driver_name:    a.driver?.name,
+      vehicle_name:   a.vehicle?.name,
+      plate_no:       a.vehicle?.plate_no,
+      vehicle_type:   a.vehicle?.type,
+      capacity:       a.vehicle?.capacity,
+      fuel_level:     a.vehicle?.fuel_level,
+    };
+  });
   res.json(flat);
 });
 
